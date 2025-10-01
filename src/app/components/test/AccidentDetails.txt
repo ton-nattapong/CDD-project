@@ -1,0 +1,687 @@
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import DamagePhotosPanel, { DamagePhotoItem } from "../components/DamagePhotosPanel";
+import SafeAreaSpacer from "../components/SafeAreaSpacer";
+import MapPickerModal from "../components/MapPickerModal";
+import MapPreview from "../components/MapPreview";
+import "leaflet/dist/leaflet.css";
+interface AccidentDetailsProps { onNext: () => void; onBack: () => void; }
+
+type SavedDamage = {
+  url: string;
+  type: "image" | "video";
+  publicId?: string;
+  side?: "ซ้าย" | "ขวา" | "หน้า" | "หลัง" | "ไม่ระบุ";
+  total?: number;
+  perClass?: Record<string, number>;
+  note?: string;
+};
+type MediaItem = { url: string; type: "image" | "video"; publicId?: string };
+type AccidentType =
+  | "ถูกชนขนะจอดอยู่" | "ถูกของตกใส่" | "ชนสัตว์" | "ชนสิ่งของ" | "ไฟไหม้" | "น้ำท่วม" | "ยางรั่ว/ยางแตก" | "อื่นๆ";
+
+
+const ACCIDENT_TYPES: { key: AccidentType; label: string; image?: string }[] = [
+  { key: "ถูกชนขนะจอดอยู่", label: "ถูกชนขนะจอดอยู่", image: "/accident-icons/hit.png" },
+  { key: "ถูกของตกใส่", label: "ถูกของตกใส่", image: "/accident-icons/drop.png" },
+  { key: "ชนสัตว์", label: "ชนสัตว์", image: "/accident-icons/animal.png" },
+  { key: "ชนสิ่งของ", label: "ชนสิ่งของ", image: "/accident-icons/crash.png" },
+  { key: "ไฟไหม้", label: "ไฟไหม้", image: "/accident-icons/fire.png" },
+  { key: "น้ำท่วม", label: "น้ำท่วม", image: "/accident-icons/flood.png" },
+  { key: "ยางรั่ว/ยางแตก", label: "ยางรั่ว/ยางแตก", image: "/accident-icons/wheel.png" },
+  { key: "อื่นๆ", label: "อื่น ๆ", image: "/accident-icons/etc.png" },
+];
+
+const DISTRICTS_BY_PROVINCE: Record<string, string[]> = {
+  กรุงเทพมหานคร: ["พระนคร", "ดุสิต", "หนองจอก", "บางรัก", "บางเขน", "บางกะปิ", "ปทุมวัน", "ป้อมปราบศัตรูพ่าย"],
+  นนทบุรี: ["เมืองนนทบุรี", "บางบัวทอง", "ปากเกร็ด", "บางกรวย", "บางใหญ่", "ไทรน้อย"],
+  ปทุมธานี: ["เมืองปทุมธานี", "คลองหลวง", "ธัญบุรี", "หนองเสือ", "ลาดหลุมแก้ว", "ลำลูกกา"],
+  สมุทรปราการ: ["เมืองสมุทรปราการ", "บางบ่อ", "บางพลี", "พระประแดง", "พระสมุทรเจดีย์", "บางเสาธง"],
+  ชลบุรี: ["เมืองชลบุรี", "บางละมุง", "ศรีราชา", "พานทอง", "สัตหีบ"],
+  เชียงใหม่: ["เมืองเชียงใหม่", "สารภี", "สันทราย", "สันกำแพง", "แม่ริม", "หางดง"],
+  นครราชสีมา: ["เมืองนครราชสีมา", "ปากช่อง", "โนนสูง", "สูงเนิน", "สีคิ้ว"],
+  ขอนแก่น: ["เมืองขอนแก่น", "บ้านไผ่", "น้ำพอง", "ชุมแพ", "พล"],
+  ภูเก็ต: ["เมืองภูเก็ต", "กะทู้", "ถลาง"],
+};
+const PROVINCES = Object.keys(DISTRICTS_BY_PROVINCE);
+
+const CAR_KEY = "claimSelectedCar";
+const ACC_KEY = "accidentDraft";
+/* ---------- helpers (คงสไตล์ input เดิม) ---------- */
+
+function labelEl(text: string, required?: boolean, hint?: string) {
+  return (
+    <div className="mb-1 flex items-center gap-2">
+      <span className="text-sm font-medium text-zinc-800">{text}</span>
+      {required && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">จำเป็น</span>}
+      {hint && <span className="text-xs text-zinc-500">{hint}</span>}
+    </div>
+  );
+}
+
+function fieldSurface({
+  required, filled, invalid,
+}: { required?: boolean; filled?: boolean; invalid?: boolean }) {
+  const base = "rounded-[7px] border px-3 py-2 sm:py-2.5 text-zinc-900 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.03)] transition outline-none w-full ";
+  if (invalid) return `${base} bg-[#D9D9D9] border-zinc-200 focus:ring-2 focus:ring-zinc-500`;
+  if (required && !filled) return `${base} bg-[#D9D9D9] border-zinc-200 focus:ring-2 focus:ring-zinc-500`;
+  return `${base} bg-white border-zinc-200 focus:ring-2 focus:ring-violet-500`;
+}
+
+function FieldWithIcon({ icon, children }: { icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="relative min-w-0 w-full">
+      {icon && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">{icon}</span>}
+      <div className={icon ? "pl-8 min-w-0 w-full" : "min-w-0 w-full"}>{children}</div>
+    </div>
+  );
+}
+function toDateInputValue(iso?: string): string {
+  if (!iso) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso; // ถ้าเป็น YYYY-MM-DD อยู่แล้ว
+  return new Date(iso).toISOString().slice(0, 10); // 2025-09-09
+}
+
+function toTimeInputValue(iso?: string): string {
+  if (!iso) return "";
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(iso)) return iso; // ถ้าเป็น HH:mm หรือ HH:mm:ss อยู่แล้ว
+  return new Date(iso).toISOString().slice(11, 16); // 17:00
+}
+
+
+/* ---------- component ---------- */
+
+export default function AccidentDetails({ onNext, onBack }: AccidentDetailsProps) {
+  const [accidentType, setAccidentType] = useState<AccidentType>("ชนสัตว์");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [province, setProvince] = useState("");
+  const [district, setDistrict] = useState("");
+  const [road, setRoad] = useState("");
+  const [areaType, setAreaType] = useState("");
+  const [nearby, setNearby] = useState("");
+  const [details, setDetails] = useState("");
+
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [lat, setLat] = useState<string>("");
+  const [lng, setLng] = useState<string>("");
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [geoError, setGeoError] = useState<string>("");
+
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
+  const [uploadedEvidence, setUploadedEvidence] = useState<MediaItem[]>([]);
+  const [damageItems, setDamageItems] = useState<DamagePhotoItem[]>([]);
+  const [agreed, setAgreed] = useState(false);
+
+  // พรีวิวป๊อปอัพ
+  const [preview, setPreview] = useState<{ open: boolean; src: string; type: "image" | "video" }>({
+    open: false,
+    src: "",
+    type: "image",
+  });
+  const tempObjectUrlRef = useRef<string | null>(null);
+
+  const openPreviewFromUploaded = (m: MediaItem) => {
+    setPreview({ open: true, src: m.url, type: m.type });
+  };
+
+  const openPreviewFromFile = (file: File) => {
+    // สร้าง object URL ชั่วคราว
+    const url = URL.createObjectURL(file);
+    if (tempObjectUrlRef.current) URL.revokeObjectURL(tempObjectUrlRef.current);
+    tempObjectUrlRef.current = url;
+    setPreview({ open: true, src: url, type: file.type.startsWith("video/") ? "video" : "image" });
+  };
+
+  const closePreview = () => {
+    if (tempObjectUrlRef.current) {
+      URL.revokeObjectURL(tempObjectUrlRef.current);
+      tempObjectUrlRef.current = null;
+    }
+    setPreview({ open: false, src: "", type: "image" });
+  };
+
+  // ลบรายการ
+  const removeUploadedEvidence = (idx: number) =>
+    setUploadedEvidence(prev => prev.filter((_, i) => i !== idx));
+
+  const removeLocalEvidence = (idx: number) =>
+    setEvidenceFiles(prev => prev.filter((_, i) => i !== idx));
+
+  // กันลืม revoke ตอน unmount
+  useEffect(() => {
+    return () => {
+      if (tempObjectUrlRef.current) URL.revokeObjectURL(tempObjectUrlRef.current);
+    };
+  }, []);
+  const mapSavedToPanel = (arr: SavedDamage[] = []): DamagePhotoItem[] =>
+    arr.map((p) => ({
+      id: p.publicId || crypto.randomUUID(),
+      file: null,               // ไม่มีไฟล์จริงแล้ว (เป็น URL)
+      previewUrl: p.url,                   // ✅ ให้ img ใช้ตัวนี้
+      side: p.side ?? "ไม่ระบุ",
+      detecting: false,
+      total: p.total,
+      perClass: p.perClass,
+      note: p.note,
+    }));
+
+  useEffect(() => {
+    try {
+      const rawCar = localStorage.getItem(CAR_KEY);
+      const selectedCar = rawCar ? JSON.parse(rawCar) : null;
+
+      const rawAcc = localStorage.getItem(ACC_KEY);
+      const a = rawAcc ? JSON.parse(rawAcc) : null;
+
+      if (a) {
+        console.log("Restoring saved accident draft:", a);
+        console.log("🆔 Claim ID:", a.claim_id);
+        console.log("👤 User ID:", a.user_id);
+        console.log("📌 Status:", a.status);
+        console.log("🚘 Selected Car ID:", a.selected_car_id);
+        console.log("📄 Accident Detail ID:", a.accident_detail_id);
+        console.log("⏱ Created At:", a.created_at);
+
+        setAccidentType(a.accidentType as AccidentType);
+        setDate(toDateInputValue(a.date));
+        setTime(toTimeInputValue(a.time));
+        setProvince(a.province || "");
+        setDistrict(a.district || "");
+        setRoad(a.road || "");
+        setAreaType(a.areaType || "");
+        setNearby(a.nearby || "");
+        setDetails(a.details || "");
+        setUploadedEvidence(a.evidenceMedia || []);
+        setDamageItems(mapSavedToPanel(a.damagePhotos));
+        console.log("DamageItems:", a.damagePhotos);
+
+        // บังคับให้เป็น string เสมอ
+        const loc = a.location || {};
+        setLat(typeof loc.lat === "number" ? loc.lat.toFixed(6) : (loc.lat ?? ""));
+        setLng(typeof loc.lng === "number" ? loc.lng.toFixed(6) : (loc.lng ?? ""));
+        setAccuracy(typeof loc.accuracy === "number" ? loc.accuracy : null);
+
+        // ⬇️ ถ้าไม่มี selectedCar แต่ draft มี selected_car_id → ยิง API
+        if (!selectedCar && a.selected_car_id) {
+          fetch(`${process.env.NEXT_PUBLIC_URL_PREFIX}/api/policy/by-id/${a.selected_car_id}`, {
+            credentials: "include",
+          })
+            .then((res) => {
+              if (!res.ok) throw new Error("โหลดข้อมูลรถไม่สำเร็จ");
+              return res.json();
+            })
+            .then((data) => {
+              if (Array.isArray(data) && data.length > 0) {
+                console.log("📄 Car from API:", data[0]);
+                localStorage.setItem(CAR_KEY, JSON.stringify(data[0]));
+                // set state
+                // 👉 อย่าลืมใช้ setCar ถ้าใช้ใน component
+                // setCar(data[0]);
+              }
+            })
+            .catch((err) => {
+              console.error("fetch car error:", err);
+            });
+        }
+      }
+
+      if (selectedCar?.id) {
+        console.log("🚗 Car ID:", selectedCar.id);
+        // setCar(selectedCar); // ใช้ car จาก localStorage ถ้ามี
+      }
+    } catch (e) {
+      console.warn("Failed to restore draft:", e);
+    }
+  }, []);
+
+  const isValid = useMemo(() => {
+    const hasNearby = nearby.trim().length > 0;
+    const hasDetails = details.trim().length > 0;
+
+    const hasAnyEvidence = evidenceFiles.length > 0 || uploadedEvidence.length > 0;
+
+    return Boolean(
+      date && time && areaType && lat && lng &&
+      hasNearby && hasDetails &&
+      agreed &&
+      hasAnyEvidence &&
+      damageItems.length > 0
+    );
+  }, [date, time, areaType, lat, lng, nearby, details, agreed, evidenceFiles.length, uploadedEvidence.length, damageItems.length]);
+
+  const openMapPicker = () => {
+    setGeoStatus("idle");
+    setGeoError("");
+    setShowMapPicker(true);
+  };
+
+
+
+  async function uploadToCloudinary(file: File): Promise<MediaItem> {
+    const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD!;
+    const preset = process.env.NEXT_PUBLIC_CLOUDINARY_PRESET!;
+    const fd = new FormData(); fd.append("file", file); fd.append("upload_preset", preset);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/auto/upload`, { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || "Upload failed");
+    return { url: data.secure_url as string, type: data.resource_type as "image" | "video", publicId: data.public_id as string };
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isValid) return;
+    try {
+      const newEvidenceUploads: MediaItem[] = await Promise.all(
+        evidenceFiles.map(uploadToCloudinary)
+      );
+      const evidenceMedia: MediaItem[] = [
+        ...uploadedEvidence,
+        ...newEvidenceUploads,
+      ];
+
+      const damagePhotos = await Promise.all(
+        damageItems.map(async (it) => {
+          if (it.file) {
+            const up = await uploadToCloudinary(it.file);
+            return {
+              url: up.url,
+              type: up.type,
+              publicId: up.publicId,
+              side: it.side,
+              total: it.total,
+              perClass: it.perClass,
+              note: it.note,
+            };
+          }
+          return {
+            url: it.previewUrl,
+            type: "image",
+            publicId: it.id,
+            side: it.side,
+            total: it.total,
+            perClass: it.perClass,
+            note: it.note,
+          };
+        })
+      );
+
+      const orNull = (v: string) =>
+        v && v.trim() !== "" && v.trim() !== "-" ? v.trim() : null;
+
+      // ดึง draft เดิมก่อน
+      const oldDraftRaw = localStorage.getItem(ACC_KEY);
+      const oldDraft = oldDraftRaw ? JSON.parse(oldDraftRaw) : {};
+
+      // รวมค่าเดิม (status, claim_id, selected_car_id ฯลฯ) + ค่าที่อัปเดตใหม่
+      const payload = {
+        ...oldDraft, // ✅ เก็บค่าเดิมไว้
+        accidentType,
+        date,
+        time,
+        province: orNull(province),
+        district: orNull(district),
+        road: orNull(road),
+        areaType,
+        nearby,
+        details,
+        location: { lat: Number(lat), lng: Number(lng), accuracy },
+        evidenceMedia,
+        damagePhotos,
+      };
+
+      localStorage.setItem(ACC_KEY, JSON.stringify(payload));
+      onNext();
+    } catch (err: any) {
+      alert(`อัปโหลดไฟล์ไม่สำเร็จ: ${err?.message ?? "ลองใหม่อีกครั้ง"}`);
+    }
+  };
+
+
+  return (
+    <div className="acc-page box-border mx-auto max-w-5xl px-3 sm:px-4 md:px-6 overflow-x-hidden">
+      {/* ชิปเลือกชนิดอุบัติเหตุ */}
+      <div className="mb-5">
+        <div className="mb-5 flex items-center justify-center gap-2">
+
+          <h2 className="text-base sm:text-lg font-semibold text-zinc-900">ระบุอุบัติเหตุ</h2>
+
+        </div>
+        <div
+          className="-mx-3 px-3 py-3 sm:mx-0 sm:px-0 chip-scroller flex gap-3 sm:gap-4 overflow-x-auto scroll-smooth"
+          style={{
+            scrollbarWidth: "thin", // Firefox
+            scrollbarColor: "#6D5BD0 #E5E7EB", // สี thumb / track
+          }}
+        >
+          {ACCIDENT_TYPES.map((t) => {
+            const active = accidentType === t.key;
+            return (
+              <div
+                key={t.key}
+                className="flex flex-col items-center w-[150px] sm:w-[180px] shrink-0 p-2 "
+                style={{ scrollSnapAlign: "start" }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setAccidentType(t.key)}
+                  className={[
+                    "w-full h-[150px] rounded-[12px] ring-1 flex items-center justify-center transition-all duration-300 transform ",
+                    active
+                      ? "bg-gradient-to-b from-[#6D5BD0] to-[#433D8B] text-white ring-violet-300 scale-105 shadow-lg"
+                      : "bg-[#C6C6C6] text-zinc-700 ring-zinc-200 hover:bg-[#d8d8d8] hover:scale-105 hover:shadow-md",
+                  ].join(" ")}
+                >
+                  {t.image && (
+                    <img
+                      src={t.image}
+                      alt={t.label}
+                      className="object-contain transition-transform duration-300 group-hover:scale-110"
+                      draggable={false}
+                    />
+                  )}
+                </button>
+                <span
+                  className={[
+                    "mt-2 text-sm font-semibold text-center transition-colors duration-300",
+                    active ? "text-[#433D8B]" : "text-zinc-800 group-hover:text-[#6D5BD0]",
+                  ].join(" ")}
+                >
+                  {t.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+
+      </div>
+
+
+
+      {/* ฟอร์ม */}
+      <form  onSubmit={handleSubmit} className=" max-w-full  bg-white   p-6 space-y-8">
+        {/*  รายละเอียดเพิ่มเติม */}
+        <div>
+          {labelEl("รายละเอียดอุบัติเหตุเพิ่มเติม", true)}
+          <textarea className={fieldSurface({ required: true, filled: !!details }) + " min-h-[96px]"} placeholder="อธิบายเหตุการณ์โดยย่อ" value={details} onChange={(e) => setDetails(e.target.value)} />
+        </div>
+        <div className="mb-5 flex items-center justify-center gap-2">
+
+          <h2 className="text-base sm:text-lg font-semibold text-zinc-900">รายละเอียดที่เกิดเหตุ</h2>
+
+        </div>
+        {/* Section 1: ข้อมูลพื้นฐาน */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            {labelEl("วันที่เกิดอุบัติเหตุ", true)}
+            <input type="date" className={fieldSurface({ required: true, filled: !!date })} value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+
+          <div>
+            {labelEl("เวลาเกิดอุบัติเหตุ", true)}
+            <input type="time" className={fieldSurface({ required: true, filled: !!time })} value={time} onChange={(e) => setTime(e.target.value)} />
+          </div>
+
+          <div>
+            {labelEl("จังหวัด")}
+            <select className={fieldSurface({ filled: !!province })} value={province} onChange={(e) => setProvince(e.target.value)}>
+              <option value="">ไม่ระบุ</option>
+              {PROVINCES.map(p => <option key={p}>{p}</option>)}
+            </select>
+          </div>
+
+          <div>
+            {labelEl("อำเภอ/เขต")}
+            <select className={fieldSurface({ filled: !!district })} value={district} disabled={!province} onChange={(e) => setDistrict(e.target.value)}>
+              <option value="">{province ? "ไม่ระบุ" : "—"}</option>
+              {(DISTRICTS_BY_PROVINCE[province] || []).map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
+
+          <div className="md:col-span-2">
+            {labelEl("ถนน")}
+            <input type="text" placeholder="ปล่อยว่างได้ถ้าไม่ทราบ" className={fieldSurface({ filled: !!road })} value={road} onChange={(e) => setRoad(e.target.value)} />
+          </div>
+
+          <div>
+            {labelEl("ประเภทพื้นที่", true)}
+            <select className={fieldSurface({ required: true, filled: !!areaType })} value={areaType} onChange={(e) => setAreaType(e.target.value)}>
+              <option value="">โปรดเลือก</option>
+              <option>ทางหลวง</option>
+              <option>ชุมชน/หมู่บ้าน</option>
+              <option>ในเมือง</option>
+            </select>
+          </div>
+
+          <div>
+            {labelEl("จุดสังเกตใกล้เคียง", true)}
+            <textarea className={fieldSurface({ required: true, filled: !!nearby }) + " min-h-[96px]"} placeholder="เช่น ใกล้ปั๊มน้ำมัน..." value={nearby} onChange={(e) => setNearby(e.target.value)} />
+          </div>
+
+
+        </div>
+
+
+
+        <div className="grid grid-cols-1 md:grid-cols-1">
+          <div>
+            {labelEl("ตำแหน่งที่เกิดเหตุ (GPS/เลือกจากแผนที่)")}
+            <button onClick={openMapPicker} type="button" className="mt-2 mb-2 rounded-[7px] bg-[#6D5BD0] px-8 py-2 text-sm text-white hover:bg-[#433D8B] ">
+              ระตำแหน่ง
+            </button>
+            {/* {lat && lng && (
+              <div className="mt-2 text-xs text-zinc-700  rounded px-3 py-2">
+                พิกัด: {lat}, {lng}
+              </div>
+            )} */}
+          </div>
+          <div>
+            {lat && lng && (
+              <MapPreview
+                lat={parseFloat(lat)}
+                lng={parseFloat(lng)}
+              />
+            )}
+          </div>
+        </div>
+
+
+
+
+
+        {/* 5) อัปโหลดหลักฐาน */}
+        <div className="mt-6 min-w-0">
+          {labelEl("อัปโหลดรูปหรือวิดีโอที่เกิดเหตุ", true)}
+
+          <input
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={(e) => setEvidenceFiles(Array.from(e.target.files || []))}
+            className="block w-full cursor-pointer rounded-[7px] border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 file:mr-3 file:rounded-[7px] file:border-0 file:bg-zinc-800 file:px-3 file:py-2 file:text-white hover:file:bg-zinc-700"
+            required={uploadedEvidence.length === 0}
+          />
+
+          {/* อัปโหลดแล้วก่อนหน้า (มาจาก Cloudinary / draft) */}
+          {uploadedEvidence.length > 0 && (
+            <>
+              <p className="mt-2 text-xs font-medium text-zinc-700">ไฟล์ที่อัปโหลดแล้ว</p>
+              <ul className="mt-1 max-h-40 overflow-auto list-disc space-y-1 pl-5 text-xs text-zinc-700 break-all">
+                {uploadedEvidence.map((m, i) => (
+                  <li key={m.publicId || m.url} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="truncate text-indigo-600 hover:underline"
+                      title={m.publicId || m.url}
+                      onClick={() => openPreviewFromUploaded(m)}
+                    >
+                      {m.publicId || m.url}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeUploadedEvidence(i)}
+                      className="shrink-0 rounded-[7px] bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700 hover:bg-rose-200"
+                    >
+                      ลบ
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {/* ไฟล์ที่เพิ่งเลือกใหม่รอบนี้ (ยังไม่อัปโหลด) */}
+          {evidenceFiles.length > 0 && (
+            <>
+              <p className="mt-3 text-xs font-medium text-zinc-700">ไฟล์ที่เลือกใหม่ (ยังไม่อัปโหลด)</p>
+              <ul className="mt-1 max-h-40 overflow-auto list-disc space-y-1 pl-5 text-xs text-zinc-700 break-all">
+                {evidenceFiles.map((f, i) => (
+                  <li key={`${f.name}-${i}`} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="truncate text-indigo-600 hover:underline"
+                      title={f.name}
+                      onClick={() => openPreviewFromFile(f)}
+                    >
+                      {f.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeLocalEvidence(i)}
+                      className="shrink-0 rounded-[7px] bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700 hover:bg-rose-200"
+                    >
+                      ลบ
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <p className="mt-1 text-xs text-zinc-500">รองรับรูป/วิดีโอ (แนะนำรวม ≤ 100MB)</p>
+        </div>
+{/* Modal พรีวิว */}
+        {preview.open && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={closePreview}
+          >
+            <div
+              className="relative w-full max-w-3xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={closePreview}
+                className="absolute -top-3 -right-3 rounded-full bg-white px-3 py-1.5 text-sm font-medium text-black shadow"
+              >
+                ปิด 
+              </button>
+
+              <div className="rounded-[7px] bg-white p-3">
+                {preview.type === "image" ? (
+                  <img
+                    src={preview.src}
+                    alt="evidence"
+                    className="max-h-[75vh] w-full object-contain rounded-[7px]"
+                  />
+                ) : (
+                  <video
+                    src={preview.src}
+                    controls
+                    className="max-h-[75vh] w-full rounded-[7px]"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+        )}
+
+        {/* upload car damage */}
+        <div className="mb-5 flex items-center justify-center gap-2">
+
+          <h2 className="text-base sm:text-lg font-semibold text-zinc-900">อัปโหลดภาพรถยนต์ที่เกิดความเสียหาย</h2>
+
+        </div>
+        {/* 4) รูปความเสียหาย + AI */}
+        <div className="mt-6 min-w-0">
+          
+          <div className="rounded-[7px] ring-1p-3 sm:p-4 overflow-hidden">
+            <DamagePhotosPanel
+              apiBaseUrl={process.env.NEXT_PUBLIC_DETECT_API_URL as string}
+              onChange={setDamageItems}
+              value={damageItems} />
+          </div>
+        </div>
+        
+
+
+        {/* 6) ยินยอม */}
+        <div className="mt-6 flex items-start gap-2">
+          <input id="agree" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500" />
+          <label htmlFor="agree" className="text-sm text-zinc-700">ข้าพเจ้ายืนยันว่าข้อมูลถูกต้องและอนุญาตให้ใช้เพื่อการดำเนินการเคลม</label>
+        </div>
+
+        {/* ปุ่ม */}
+        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <button type="button" onClick={onBack} className="w-full sm:w-auto rounded-[7px] font-medium bg-zinc-200 text-zinc-800 hover:bg-zinc-300 px-6 py-3 sm:py-2 ">ย้อนกลับ</button>
+          <button type="submit" disabled={!isValid} className={`w-full sm:w-auto rounded-[7px] bg-[#6D5BD0] hover:bg-[#433D8B] text-white px-6 py-2 font-medium shadow-sm disabled:opacity-50 ${isValid ? "bg-[#6D5BD0] hover:bg-[#433D8B]" : "bg-zinc-400 cursor-not-allowed"}`}>ดำเนินการต่อ</button>
+        </div>
+      </form>
+
+
+      {/* กัน bottom bar ทับเหมือนหน้า CarSelection */}
+      <SafeAreaSpacer />
+
+      <MapPickerModal
+        open={showMapPicker}
+        onClose={() => setShowMapPicker(false)}
+        title="เลือกตำแหน่งบนแผนที่"
+        value={
+          lat && lng
+            ? { lat: parseFloat(lat), lng: parseFloat(lng) }
+            : null
+        }
+        onSelect={(pos) => {
+          setLat(pos.lat.toFixed(6));
+          setLng(pos.lng.toFixed(6));
+          // ไม่มี accuracy จากแผนที่ (ผู้ใช้ลากหมุดเอง) → ตั้งเป็น null
+          setAccuracy(null);
+          setGeoStatus("success");
+          setShowMapPicker(false);
+        }}
+      />
+      {/* กันล้นเฉพาะหน้านี้ */}
+      <style jsx global>{`
+        .acc-page { max-width: 100vw; overflow-x: hidden; }
+        .acc-page * { min-width: 0; }
+        .chip-scroller {
+          overflow-x: auto; scroll-snap-type: x mandatory;
+          -ms-overflow-style: none; scrollbar-width: none;
+        }
+        .chip-scroller::-webkit-scrollbar { display: none; }
+        .acc-page input, .acc-page select, .acc-page textarea { max-width: 100%; }
+        .acc-page img, .acc-page video { max-width: 100%; height: auto; }
+        .chip-scroller::-webkit-scrollbar {
+      height: 8px;
+        }
+        .chip-scroller::-webkit-scrollbar-track {
+          background: #e5e7eb; /* เทาอ่อน */
+          border-radius: 999px;
+        }
+        .chip-scroller::-webkit-scrollbar-thumb {
+          background: #6d5bd0; /* ม่วง */
+          border-radius: 999px;
+          transition: background 0.3s;
+        }
+        .chip-scroller::-webkit-scrollbar-thumb:hover {
+          background: #433d8b; /* ม่วงเข้ม */
+        }
+      `}</style>
+    </div>
+  );
+}

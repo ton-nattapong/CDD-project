@@ -1,0 +1,470 @@
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCamera, faTrashCan } from "@fortawesome/free-solid-svg-icons";
+/** ---------- Types ---------- */
+export type DamageSide = "ซ้าย" | "ขวา" | "หน้า" | "หลัง" | "ไม่ระบุ";
+
+export type DamagePhotoItem = {
+  id: string;
+  file: File | null;                 // อาจไม่มีไฟล์จริง (รูปจาก URL)
+  previewUrl: string;                // blob:... หรือ https://...
+  side: DamageSide;
+  detecting: boolean;
+  error?: string;
+  total?: number;
+  perClass?: Record<string, number>;
+  note?: string;
+};
+
+type Props = {
+  apiBaseUrl: string;                // เช่น http://localhost:8000
+  value?: DamagePhotoItem[];         // controlled from parent
+  onChange?: (items: DamagePhotoItem[]) => void;
+  maxTotalMB?: number;               // default 100
+};
+const DAMAGE_EN2TH: Record<string, string> = {
+  "crack": "ร้าว",
+  "dent": "บุบ",
+  "glass shatter": "กระจกแตก",
+  "lamp broken": "ไฟแตก",
+  "scratch": "ขีดข่วน",
+  "tire flat": "ยางแบน",
+};
+
+const toTHDamage = (s?: string) =>
+  !s ? "" : DAMAGE_EN2TH[s] ?? s;
+
+/** ---------- helpers ---------- */
+function shallowRecordEqual(
+  a?: Record<string, number>,
+  b?: Record<string, number>
+) {
+  if (a === b) return true;
+  if (!a || !b) return !a && !b;
+  const ak = Object.keys(a);
+  const bk = Object.keys(b);
+  if (ak.length !== bk.length) return false;
+  for (const k of ak) if (a[k] !== b[k]) return false;
+  return true;
+}
+
+function shallowItemEqual(a: DamagePhotoItem, b: DamagePhotoItem) {
+  return (
+    a.id === b.id &&
+    a.previewUrl === b.previewUrl &&
+    a.file === b.file &&
+    a.side === b.side &&
+    a.total === b.total &&
+    shallowRecordEqual(a.perClass, b.perClass)
+    // ไม่เปรียบเทียบ detecting/error เพราะเป็น transient
+  );
+}
+
+function shallowArrayEqual(a: DamagePhotoItem[], b: DamagePhotoItem[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (!shallowItemEqual(a[i], b[i])) return false;
+  return true;
+}
+
+/** ---------- Component ---------- */
+export default function DamagePhotosPanel({
+  apiBaseUrl,
+  value,
+  onChange,
+  maxTotalMB = 100,
+}: Props) {
+  const [items, setItems] = useState<DamagePhotoItem[]>([]);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  // ---- State สำหรับ popup หมายเหตุ ----
+  const [notePopup, setNotePopup] = useState<{ open: boolean; id: string | null; text: string }>({
+    open: false,
+    id: null,
+    text: "",
+  });
+  function updateNote(id: string, value: string) {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === id ? { ...it, note: value } : it
+      )
+    );
+  }
+  const openNoteFor = (id: string, preset?: string) => {
+    // ดึง note เดิมมา preload
+    const it = itemsRef.current.find(x => x.id === id);
+    setNotePopup({
+      open: true,
+      id,
+      text: preset ?? it?.note ?? "",
+    });
+  };
+
+  const saveNote = () => {
+    if (!notePopup.id) return;
+    const text = notePopup.text.trim();
+    mutate(prev => prev.map(x => (x.id === notePopup.id ? { ...x, note: text || undefined } : x)));
+    setNotePopup({ open: false, id: null, text: "" });
+  };
+
+  const closeNote = () => setNotePopup({ open: false, id: null, text: "" });
+
+  // ใช้ ref เก็บ items ล่าสุด (กัน stale ใน async)
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  // ป้องกันลูป: กำลัง sync จาก parent อยู่หรือไม่
+  const syncingFromParent = useRef(false);
+
+  // onChange ล่าสุด
+  const onChangeRef = useRef<Props["onChange"] | null>(null);
+  useEffect(() => {
+    onChangeRef.current = onChange ?? null;
+  }, [onChange]);
+
+  // ---- sync parent -> local (normalize + กัน set ซ้ำ) ----
+  useEffect(() => {
+    if (!value) return;
+
+    const normalized: DamagePhotoItem[] = value.map((v) => ({
+      id: v.id ?? crypto.randomUUID(),
+      previewUrl: v.previewUrl ?? (v as any).url ?? "",
+      file: v.file ?? null,
+      side: v.side ?? "ไม่ระบุ",
+      detecting: false, // reset เสมอ
+      total: typeof v.total === "number" ? v.total : undefined,
+      perClass: v.perClass ?? undefined,
+      note: v.note ?? undefined,
+      error: undefined,
+    }));
+
+    const curr = itemsRef.current;
+    if (!shallowArrayEqual(curr, normalized)) {
+      syncingFromParent.current = true;       // บอกว่าเปลี่ยนเพราะ parent
+      setItems(normalized);
+    }
+    // dep แค่ [value] พอ — เราอ่านค่าปัจจุบันผ่าน itemsRef
+  }, [value]);
+
+  // ---- emit local -> parent เฉพาะเมื่อไม่ใช่การ sync จาก parent ----
+  useEffect(() => {
+    if (syncingFromParent.current) {
+      syncingFromParent.current = false;
+      return; // อย่ายิง onChange กลับ (กัน loop)
+    }
+    onChangeRef.current?.(items);
+  }, [items]);
+
+  // รวมขนาดไฟล์ทั้งหมด (MB)
+  const totalMB = useMemo(
+    () => items.reduce((s, it) => s + (it.file?.size ?? 0), 0) / (1024 * 1024),
+    [items]
+  );
+
+  // อัปเดตภายใน (มาจากการกระทำของผู้ใช้) และ emit ไป parent
+  const mutate = (fn: (prev: DamagePhotoItem[]) => DamagePhotoItem[]) => {
+    setItems((prev) => {
+      const next = fn(prev);
+      // นี่คือการเปลี่ยนจากผู้ใช้ ไม่ใช่ sync จาก parent
+      // ปล่อยให้ useEffect([items]) เป็นคน emit (ไม่ตั้ง flag)
+      return next;
+    });
+  };
+
+  /** เพิ่มรูปจากไฟล์ (image/*) */
+  const addFiles = (files: FileList | null, side: DamageSide = "ไม่ระบุ") => {
+    if (!files) return;
+    const newOnes: DamagePhotoItem[] = Array.from(files)
+      .filter((f) => f.type.startsWith("image/"))
+      .map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+        side,              // 🟢 เอาค่า side ที่ส่งเข้ามา
+        detecting: false,
+      }));
+    mutate((prev) => [...prev, ...newOnes]);
+  };
+
+  /** ลบรูป + revoke เฉพาะ blob: */
+  const removeOne = (id: string) => {
+    mutate((prev) => {
+      const it = prev.find((x) => x.id === id);
+      if (it && it.previewUrl.startsWith("blob:")) URL.revokeObjectURL(it.previewUrl);
+      return prev.filter((x) => x.id !== id);
+    });
+  };
+
+  /** ตั้งค่าด้านของรถ */
+  const setSide = (id: string, side: DamageSide) =>
+    mutate((prev) => prev.map((x) => (x.id === id ? { ...x, side } : x)));
+
+  /** วิเคราะห์ 1 รูป (ต้องมีไฟล์) */
+  const detectOne = async (id: string) => {
+    // 1) set loading
+    mutate(prev => prev.map(x => x.id === id ? { ...x, detecting: true, error: undefined } : x));
+
+    const it = itemsRef.current.find(x => x.id === id);
+    if (!it) return;
+
+    let fileToSend: File | null = it.file;
+
+    // 2) ถ้าไม่มีไฟล์จริง (เป็นรูปจาก URL) -> ดึงเป็น blob แล้วสร้าง File
+    if (!fileToSend) {
+      try {
+        const resp = await fetch(it.previewUrl, { mode: "cors", credentials: "omit" });
+        if (!resp.ok || resp.type === "opaque") throw new Error("โหลดรูปจาก URL ไม่สำเร็จ (CORS)");
+
+        const blob = await resp.blob();
+
+        // เดาชื่อ/นามสกุลไฟล์ให้สวยขึ้น
+        const urlExt = it.previewUrl.split(".").pop()?.split("?")[0] || "jpg";
+        const mimeExt = blob.type?.split("/")[1];
+        const ext = mimeExt || urlExt || "jpg";
+
+        fileToSend = new File([blob], `remote-${it.id}.${ext}`, { type: blob.type || "image/jpeg" });
+
+        // cache ใส่ state เพื่อลด fetch รอบต่อไป
+        const f = fileToSend;
+        mutate(prev => prev.map(x => x.id === id ? { ...x, file: f } : x));
+      } catch (err: any) {
+        mutate(prev =>
+          prev.map(x => x.id === id ? { ...x, detecting: false, error: err?.message || "โหลดรูปจาก URL ไม่สำเร็จ" } : x)
+        );
+        return;
+      }
+    }
+
+    // 3) ส่งเข้า API
+    try {
+      const fd = new FormData();
+      fd.append("file", fileToSend!);           // มีแน่เพราะจัดการข้างบนแล้ว
+      fd.append("side_hint", it.side);
+
+      const base = apiBaseUrl.replace(/\/$/, "");
+      const res = await fetch(`${base}/detect/count`, { method: "POST", body: fd });
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const err = await res.json(); msg = err?.detail || err?.error || msg; } catch { }
+        throw new Error(msg);
+      }
+
+      const data: { total?: number; per_class?: Record<string, number> } = await res.json();
+
+      mutate(prev =>
+        prev.map(x =>
+          x.id === id
+            ? {
+              ...x,
+              detecting: false,
+              total: typeof data.total === "number" ? data.total : 0,
+              perClass: data.per_class || {},
+            }
+            : x
+        )
+      );
+      // ถ้าไม่พบความเสียหายเลย -> เปิด popup ให้ใส่หมายเหตุทันที (ครั้งแรกเท่านั้น ถ้าอยากบังคับทุกครั้ง ตัดเช็ค note ได้)
+      const total = typeof data.total === "number" ? data.total : 0;
+      const isEmpty = total === 0 || !data.per_class || Object.keys(data.per_class).length === 0;
+      if (isEmpty) {
+        const latest = itemsRef.current.find(x => x.id === id);
+        if (!latest?.note) {
+          openNoteFor(id, "");
+        }
+      }
+    } catch (e: any) {
+      mutate(prev =>
+        prev.map(x => x.id === id ? { ...x, detecting: false, error: e?.message || "detect error" } : x)
+      );
+    }
+  };
+
+
+  /** วิเคราะห์ทั้งหมด (ข้ามรายการที่ไม่มีไฟล์/วิเคราะห์แล้ว) */
+  const detectAll = async () => {
+    for (const it of itemsRef.current) {
+      if (!it.file) continue;
+      if (typeof it.total === "number") continue;
+      // eslint-disable-next-line no-await-in-loop
+      await detectOne(it.id);
+    }
+  };
+
+  return (
+    <div className="rounded-[7px]  p-4 bg-white">
+      {/* หัว */}
+      {/* <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="rounded-[7px] bg-zinc-700 px-3 py-2 text-sm text-white hover:bg-zinc-600"
+          >
+            เพิ่มรูป
+          </button>
+          <button
+            type="button"
+            onClick={detectAll}
+            disabled={
+              items.length === 0 ||
+              items.some((x) => x.detecting)
+            }
+            className="rounded-[7px]  px-3 py-2 text-sm font-medium text-white bg-[#6D5BD0]  hover:bg-[#433D8B] disabled:bg-zinc-600"
+          >
+            วิเคราะห์ทั้งหมดด้วย AI
+          </button>
+        </div>
+      </div> */}
+
+      <div className="flex justify-center my-6">
+        <div className="flex justify-center my-6">
+          <div className="relative w-[300px] m-8">
+            <img src="/elements/car-top-view.png" alt="car" className="w-full" />
+            {(["หน้า", "หลัง", "ซ้าย", "ขวา"] as DamageSide[]).map((side, i) => (
+              <label
+                key={i}
+                className="group absolute w-10 h-10 flex items-center justify-center rounded-full 
+                   bg-[#433D8B] border-[6px] border-[#D9D4F3] shadow-lg cursor-pointer 
+                   hover:bg-[#433D8B]/80 transition-all duration-300 
+                   hover:scale-110 hover:ring-4 hover:ring-[#433D8B]/40 active:scale-95"
+                style={{
+                  ...(side === "หน้า" && { top: "-3rem", left: "50%", transform: "translateX(-50%)" }),
+                  ...(side === "หลัง" && { bottom: "-3rem", left: "50%", transform: "translateX(-50%)" }),
+                  ...(side === "ซ้าย" && { top: "50%", left: "-1.5rem", transform: "translateY(-50%)" }),
+                  ...(side === "ขวา" && { top: "50%", right: "-1.5rem", transform: "translateY(-50%)" }),
+                }}
+              >
+                <FontAwesomeIcon icon={faCamera} className="w-4 h-4 text-white" />
+
+                {/* Tooltip */}
+                <span
+                  className="absolute -top-9 left-1/2 -translate-x-1/2 
+                     px-2 py-1 rounded-md text-xs text-white bg-black/80 
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
+                >
+                  อัปโหลดรูปภาพด้าน {side}
+                </span>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={e => addFiles(e.target.files, side)}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
+      </div>
+
+
+      <div className="mt-15 p-5  rounded-xl bg-[#eeeeee] ">
+        <h2 className="text-xl font-bold text-black">รายการรูปภาพความเสียหาย</h2>
+        {/* อินพุตไฟล์ (ซ่อนไว้) */}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => addFiles(e.target.files)}
+        />
+
+        {/* รายการรูป */}
+        {items.length === 0 ? (
+          <div className="mt-3 text-sm text-black text-center">
+            ยังไม่มีรูปความเสียหาย
+          </div>
+        ) : (
+
+          <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            {items.map((it) => (
+              <li
+                key={it.id}
+                className="flex flex-col rounded-xl border border-zinc-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-300 p-4 h-full"
+              >
+                {/* ส่วนบน: เลือกด้าน + ปุ่มลบ */}
+                <div className="flex items-center justify-between mb-3">
+                  <select
+                    value={it.side}
+                    onChange={(e) => setSide(it.id, e.target.value as DamageSide)}
+                    className="rounded-full bg-[#433D8B] px-3 py-1 text-sm text-white shadow-sm hover:bg-[#5c4abf] transition-colors duration-300"
+                  >
+                    <option value="ไม่ระบุ">ไม่ระบุ</option>
+                    <option value="ซ้าย">ด้านซ้าย</option>
+                    <option value="ขวา">ด้านขวา</option>
+                    <option value="หน้า">ด้านหน้า</option>
+                    <option value="หลัง">ด้านหลัง</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => removeOne(it.id)}
+                    className="rounded-lg bg-red-500 p-2 text-white hover:bg-red-600 transition-colors duration-200 flex items-center justify-center"
+                  >
+                    <FontAwesomeIcon icon={faTrashCan} className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* รูปรถ */}
+                <div className="flex justify-center">
+                  <div className="w-full aspect-[4/3] flex items-center justify-center bg-zinc-50 rounded-lg overflow-hidden shadow-inner">
+                    <img
+                      src={it.previewUrl}
+                      alt="damage"
+                      className="max-h-full max-w-full "
+                    />
+                  </div>
+                </div>
+
+                {/* รายละเอียดความเสียหาย */}
+                <div className="flex flex-col flex-1 mt-4">
+                  <p className="text-sm font-medium text-center text-zinc-700">
+                    รายละเอียดความเสียหาย
+                  </p>
+                  <textarea
+                    value={it.note || ""}
+                    onChange={(e) => updateNote(it.id, e.target.value)} // ✅ auto-save
+                    placeholder="อธิบายรายละเอียดความเสียหาย"
+                    className="mt-2 w-full flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-800 placeholder-zinc-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#433D8B]/50 transition-all duration-200"
+                    rows={3}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+      </div>
+
+
+      {/* Note Popup */}
+      {/* {notePopup.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={closeNote}>
+          <div className="w-full max-w-lg rounded-2xl bg-white p-4 sm:p-5" onClick={(e) => e.stopPropagation()}>
+            <h4 className="text-sm font-semibold text-zinc-900">บันทึกหมายเหตุ (กรณี AI ไม่พบความเสียหาย/ชิ้นส่วน)</h4>
+            <textarea
+              value={notePopup.text}
+              onChange={(e) => setNotePopup(p => ({ ...p, text: e.target.value }))}
+              className="mt-3 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm"
+              placeholder="อธิบายสิ่งที่เห็น เช่น มีรอยถลอกเล็กน้อย, เป็นคราบ/สะท้อนแสง, ระบุชิ้นส่วนที่เสียหาย ฯลฯ"
+              rows={4}
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button onClick={closeNote} type="button" className="rounded-xl bg-zinc-200 px-3 py-1.5 text-sm">ยกเลิก</button>
+              <button onClick={saveNote} type="button" className="rounded-xl bg-violet-600 px-3 py-1.5 text-sm text-white">บันทึก</button>
+            </div>
+          </div>
+        </div>
+      )} */}
+    </div>
+  );
+}
