@@ -33,7 +33,7 @@ export default function LoginPage() {
 
       if (data.role === "admin") {
         // ✅ Redirect on successful login
-        router.replace("/adminpage");
+        router.replace("/adminpage/reportsall");
         router.refresh();
       } else {
         router.replace("/");

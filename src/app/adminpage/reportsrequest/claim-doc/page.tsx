@@ -48,8 +48,7 @@ export default function ClaimDocPage() {
   const [actionLoading, setActionLoading] = useState<"approve" | "reject" | "incomplete" | null>(null);
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-  const [showIncomplete, setShowIncomplete] = useState(false);
-  const [incompleteReason, setIncompleteReason] = useState("");
+
 
   // -------- Auth --------
   useEffect(() => {
@@ -157,10 +156,6 @@ export default function ClaimDocPage() {
         setShowReject(false);
         setRejectReason("");
       }
-      if (next === "incomplete") {
-        setShowIncomplete(false);
-        setIncompleteReason("");
-      }
       router.push("/adminpage/reportsrequest");
     } catch (e: any) {
       alert(e?.message ?? "เกิดข้อผิดพลาด");
@@ -198,16 +193,7 @@ export default function ClaimDocPage() {
             {user?.role === "admin" &&
               (STATUS_TH2EN[detail.status as string] ?? detail.status) === "pending" && (
                 <>
-                  <button
-                    onClick={() => setShowIncomplete(true)}
-                    disabled={actionLoading !== null}
-                    className={`h-10 rounded-xl px-4 text-sm font-medium ${actionLoading === "incomplete"
-                        ? "bg-amber-200 text-amber-800"
-                        : "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                      } border border-amber-200 w-full sm:w-auto`}
-                  >
-                    {actionLoading === "incomplete" ? "กำลังบันทึก…" : "ข้อมูลไม่ครบ"}
-                  </button>
+
 
                   <button
                     onClick={handleReject}
@@ -369,43 +355,6 @@ export default function ClaimDocPage() {
                       }`}
                   >
                     {actionLoading === "reject" ? "กำลังส่ง…" : "ยืนยันไม่อนุมัติ"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          {showIncomplete && (
-            <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 print:hidden">
-              <div className="w-[calc(100%-2rem)] max-w-lg rounded-xl bg-white p-4 shadow sm:p-5">
-                <h4 className="text-base font-semibold">ข้อมูลไม่ครบ / ภาพไม่ชัด</h4>
-                <p className="mt-1 text-sm text-zinc-600">
-                  โปรดระบุสาเหตุหรือสิ่งที่ต้องการให้ลูกค้าแก้ไขเพิ่มเติม
-                </p>
-
-                <textarea
-                  className="mt-3 min-h-[120px] w-full rounded-lg border border-zinc-300 p-3 outline-none focus:ring-2 focus:ring-amber-200"
-                  placeholder="พิมพ์รายละเอียด…"
-                  value={incompleteReason}
-                  onChange={(e) => setIncompleteReason(e.target.value)}
-                />
-
-                <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                  <button
-                    onClick={() => setShowIncomplete(false)}
-                    disabled={actionLoading === "incomplete"}
-                    className="h-10 rounded-xl bg-zinc-100 px-4 text-sm font-medium hover:bg-zinc-200"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    onClick={() => patchStatus("incomplete", incompleteReason.trim())}
-                    disabled={actionLoading === "incomplete" || !incompleteReason.trim()}
-                    className={`h-10 rounded-xl px-4 text-sm font-medium ${actionLoading === "incomplete"
-                        ? "bg-amber-400 text-white"
-                        : "bg-amber-600 text-white hover:bg-amber-700"
-                      }`}
-                  >
-                    {actionLoading === "incomplete" ? "กำลังส่ง…" : "ยืนยันข้อมูลไม่ครบ"}
                   </button>
                 </div>
               </div>

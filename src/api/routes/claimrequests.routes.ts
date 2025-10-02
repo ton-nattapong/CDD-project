@@ -96,6 +96,7 @@ router.get('/listall', async (req: Request, res: Response) => {
         cr.selected_car_id,
         cr.accident_detail_id,
         cr.created_at,
+        cr.updated_at,
 
         ad.accident_type,
         ad.accident_date,
@@ -146,7 +147,7 @@ router.get('/listall', async (req: Request, res: Response) => {
       FROM claim_requests cr
       JOIN accident_details ad ON ad.id = cr.accident_detail_id
       LEFT JOIN insurance_policies ip ON ip.id = cr.selected_car_id
-      ORDER BY COALESCE(ad.accident_date, cr.created_at::date) DESC, cr.created_at DESC
+      ORDER BY COALESCE(cr.updated_at, cr.created_at::date) DESC, cr.created_at DESC
       LIMIT $1
       `,
       [limit]

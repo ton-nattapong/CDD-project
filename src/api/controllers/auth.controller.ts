@@ -56,3 +56,19 @@ export const login = async (req: Request, res: Response) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+
+export const logout = async (req: Request, res: Response) => {
+  try {
+    // เคลียร์ cookie "token"
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    return res.json({ message: "Logout successful" });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Logout failed", details: err.message });
+  }
+};

@@ -94,32 +94,32 @@ export default function AccidentStep3({ onNext, onBack }: StepProps) {
 
     // ✅ handler สำหรับ panel
    const handlePanelChange = async (items: DamagePhotoItem[]) => {
-  const updated: DamagePhotoItem[] = [];
+    const updated: DamagePhotoItem[] = [];
 
-  for (const item of items) {
-    if (item.file) {
-      try {
-        const uploaded = await uploadToCloudinary(item.file);
+    for (const item of items) {
+        if (item.file) {
+        try {
+            const uploaded = await uploadToCloudinary(item.file);
 
-        // 👇 merge field เดิมที่ user กรอกไว้ (side, note, total, perClass)
-        updated.push({
-          ...uploaded,
-         side: item.side || uploaded.side, 
-          note: item.note ?? uploaded.note,
-          total: item.total ?? uploaded.total,
-          perClass: item.perClass ?? uploaded.perClass,
-        });
-      } catch (err) {
-        console.error("Upload failed:", err);
+            // 👇 merge field เดิมที่ user กรอกไว้ (side, note, total, perClass)
+            updated.push({
+            ...uploaded,
+            side: item.side || uploaded.side, 
+            note: item.note ?? uploaded.note,
+            total: item.total ?? uploaded.total,
+            perClass: item.perClass ?? uploaded.perClass,
+            });
+        } catch (err) {
+            console.error("Upload failed:", err);
+            updated.push(item);
+        }
+        } else {
         updated.push(item);
-      }
-    } else {
-      updated.push(item);
+        }
     }
-  }
 
-  setDamageItems(updated);
-};
+    setDamageItems(updated);
+    };
 
 
     return (

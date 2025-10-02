@@ -142,7 +142,7 @@ export default function PdfRequest({ detail }: { detail: PdfDetail }) {
           <div className="col-span-12 md:col-span-6 rounded-xl border border-zinc-200 p-4">
             <h3 className="text-[16px] font-bold text-zinc-900">รายละเอียดอุบัติเหตุ</h3>
             <div className="mt-3 space-y-2">
-              <KV k="วันที่/เวลา" v={`${accident?.date ?? "-"} • ${accident?.time ?? "-"}`} />
+              <KV k="วันที่/เวลา" v={`${accident?.accident_date ?? "-"} • ${accident?.accident_time ?? "-"}`} />
               <KV k="ประเภทเหตุการณ์" v={accident?.accidentType ?? "-"} />
               <KV k="จังหวัด/อำเภอ" v={`${province} / ${district}`} />
               <KV k="ประเภทพื้นที่" v={accident?.areaType ?? "-"} />

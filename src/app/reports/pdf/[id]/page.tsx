@@ -23,7 +23,7 @@ export default function PdfPage({ params }: { params: { id: string } }) {
             status: d.status,
             created_at: d.created_at,
             car: {
-                id: d.selected_car_id ?? 0, 
+              id: d.selected_car_id ?? 0, 
               car_brand: d.car_brand,
               car_model: d.car_model,
               car_year: d.car_year,
@@ -36,8 +36,8 @@ export default function PdfPage({ params }: { params: { id: string } }) {
             },
             accident: {
               accidentType: d.accident_type,
-              date: d.accident_date,
-              time: d.accident_time,
+              accident_date: d.accident_date,
+              accident_time: d.accident_time,
               province: d.province,
               district: d.district,
               road: d.road,

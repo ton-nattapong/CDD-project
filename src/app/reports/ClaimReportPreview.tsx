@@ -61,7 +61,7 @@ export default function ClaimReportPreview({ car, draft }: Props) {
               <div className="text-zinc-500">ไม่มีพิกัด</div>
             )}
           </div>
-          <p className="text-sm"><span className="font-medium">วัน/เวลา:</span> {draft.date} {draft.time}</p>
+          <p className="text-sm"><span className="font-medium">วัน/เวลา:</span> {draft.accident_date} {draft.accident_time}</p>
           <p className="text-sm"><span className="font-medium">สถานที่:</span> {draft.province} {draft.district} {draft.road}</p>
           <p className="text-sm"><span className="font-medium">ประเภทพื้นที่:</span> {draft.areaType}</p>
           <p className="text-sm"><span className="font-medium">จุดสังเกต:</span> {draft.nearby}</p>

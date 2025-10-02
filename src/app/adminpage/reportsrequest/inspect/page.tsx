@@ -632,7 +632,7 @@ export default function InspectPage() {
                   if (!overlayByIndex[i]) void analyzeActiveImage(i);
                 }
               }}
-              onBack={() => router.push('/adminpage/reportsrequest')}
+              onBack={() => router.back()}
             />
           </aside>
 

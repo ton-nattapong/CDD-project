@@ -30,10 +30,10 @@ const thDate = (iso?: string) => {
 
 function normalizeStatus(s?: string | null): ClaimStatus {
   const x = (s || "").toLowerCase();
-  if (x === "pending" || x === "ตรวจสอบ" || x === "review") return "กำลังตรวจสอบ";
-  if (x === "approved" || x === "success" || x === "done") return "สำเร็จ";
-  if (x === "rejected" || x === "deny") return "ปฏิเสธ";
-  if (x === "incomplete" || x === "ข้อมูลไม่ครบ") return "ข้อมูลไม่ครบ";
+  if (["pending", "ตรวจสอบ", "review"].includes(x)) return "กำลังตรวจสอบ";
+  if (["approved", "success", "done"].includes(x)) return "สำเร็จ";
+  if (["rejected", "deny"].includes(x)) return "เอกสารไม่ผ่านการตรวจสอบ";
+  if (["incomplete", "need_correction"].includes(x)) return "เอกสารต้องแก้ไขเพิ่มเติม";
   return "กำลังตรวจสอบ";
 }
 
@@ -93,9 +93,9 @@ async function fetchClaimDetail(claimId: string | number): Promise<PdfDetail> {
 function StatusChip({ status }: { status: ClaimStatus }) {
   const map: Record<ClaimStatus, string> = {
     กำลังตรวจสอบ: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-    ข้อมูลไม่ครบ: "bg-yellow-50 text-yellow-700 ring-1 ring-yellow-300",
+    เอกสารต้องแก้ไขเพิ่มเติม: "bg-yellow-50 text-yellow-700 ring-1 ring-yellow-300",
     สำเร็จ: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
-    ปฏิเสธ: "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
+    เอกสารไม่ผ่านการตรวจสอบ: "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
   };
   return (
     <span
@@ -238,7 +238,7 @@ export default function ReportsReviewedPage() {
   const reviewedClaims = useMemo(
     () =>
       allClaims.filter(
-        (c) => c.status === "สำเร็จ" || c.status === "ปฏิเสธ" || c.status === "ข้อมูลไม่ครบ"
+        (c) => c.status === "สำเร็จ" || c.status === "เอกสารไม่ผ่านการตรวจสอบ" || c.status === "เอกสารต้องแก้ไขเพิ่มเติม"
       ),
     [allClaims]
   );
@@ -248,11 +248,11 @@ export default function ReportsReviewedPage() {
     [reviewedClaims]
   );
   const rejectedClaims = useMemo(
-    () => reviewedClaims.filter((c) => c.status === "ปฏิเสธ"),
+    () => reviewedClaims.filter((c) => c.status === "เอกสารไม่ผ่านการตรวจสอบ"),
     [reviewedClaims]
   );
   const incompleteClaims = useMemo(
-    () => reviewedClaims.filter((c) => c.status === "ข้อมูลไม่ครบ"),
+    () => reviewedClaims.filter((c) => c.status === "เอกสารต้องแก้ไขเพิ่มเติม"),
     [reviewedClaims]
   );
 

@@ -1,10 +1,10 @@
 "use client";
 
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
+import { useEffect } from "react";
 import "leaflet/dist/leaflet.css";
 
-// ✅ กำหนด icon เอง (เอาไฟล์ไปไว้ที่ public/leaflet/)
 const markerIcon = L.icon({
   iconUrl: "/leaflet/marker-icon.png",
   iconRetinaUrl: "/leaflet/marker-icon-2x.png",
@@ -15,18 +15,35 @@ const markerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
+// ✅ ฟังก์ชันแก้บั๊ก container ขนาดผิด
+function FixMapSize() {
+  const map = useMap();
+  useEffect(() => {
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 300);
+  }, [map]);
+  return null;
+}
+
 export default function MapInner({ lat, lng }: { lat: number; lng: number }) {
   return (
     <MapContainer
       center={[lat, lng]}
-      zoom={16}
+      zoom={15}
       scrollWheelZoom={true}
-      className="h-[300px] w-full rounded-lg"
+      style={{ height: "300px", width: "100%", zIndex: 0 }}
+      className="rounded-lg"
     >
+      <FixMapSize />
+
+      {/* ✅ ใช้ OSM มาตรฐาน */}
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="&copy; OpenStreetMap contributors"
+        subdomains={["a", "b", "c"]}
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
+
       <Marker position={[lat, lng]} icon={markerIcon}>
         <Popup>ตำแหน่งที่เลือก</Popup>
       </Marker>
