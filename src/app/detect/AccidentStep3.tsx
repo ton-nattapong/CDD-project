@@ -3,35 +3,13 @@
 import React, { useEffect, useState } from "react";
 import DamagePhotosPanel, { DamagePhotoItem } from "../components/DamagePhotosPanel";
 import SafeAreaSpacer from "../components/SafeAreaSpacer";
+import type {
+MediaItem
+} from "@/types/claim";
 
 const ACC_KEY = "accidentDraft";
 
-// ฟังก์ชันอัปโหลดไฟล์ไป Cloudinary
-async function uploadToCloudinary(file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_PRESET as string);
 
-    const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD}/upload`,
-        { method: "POST", body: formData }
-    );
-    if (!res.ok) throw new Error("Upload failed");
-
-    const data = await res.json();
-  
- return {
-    id: data.public_id,
-    file: null,
-    previewUrl: data.secure_url,
-    side: "ไม่ระบุ",
-    total: undefined,       // ✅ ใช้ undefined
-    perClass: undefined,    // ✅ เช่นเดียวกัน
-    note: "",
-    detecting: false,
-    type: data.resource_type === "video" ? "video" : "image",
-} as DamagePhotoItem;
-}
 
 interface StepProps {
     onNext: () => void;
@@ -41,6 +19,18 @@ interface StepProps {
 export default function AccidentStep3({ onNext, onBack }: StepProps) {
     const [damageItems, setDamageItems] = useState<DamagePhotoItem[]>([]);
     const [agreed, setAgreed] = useState(false);
+
+    // ฟังก์ชันอัปโหลดไฟล์ไป Cloudinary
+    async function uploadToCloudinary(file: File): Promise<MediaItem> {
+        const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD!;
+        const preset = process.env.NEXT_PUBLIC_CLOUDINARY_PRESET!;
+        const fd = new FormData(); fd.append("file", file); fd.append("upload_preset", preset);
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/auto/upload`, { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error?.message || "Upload failed");
+        return { url: data.secure_url as string, type: data.resource_type as "image" | "video", publicId: data.public_id as string };
+    }
+
 
     // โหลด draft
     useEffect(() => {
@@ -68,22 +58,41 @@ export default function AccidentStep3({ onNext, onBack }: StepProps) {
         } catch { }
     }, []);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    // ✅ ย้าย await มาที่นี่
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const oldDraft = JSON.parse(localStorage.getItem(ACC_KEY) || "{}");
 
+        const damagePhotos = await Promise.all(
+        damageItems.map(async (it) => {
+            if (it.file) {
+            const up = await uploadToCloudinary(it.file);
+            return {
+                url: up.url,
+                type: up.type,
+                publicId: up.publicId,
+                side: it.side,
+                total: it.total,
+                perClass: it.perClass,
+                note: it.note,
+            };
+            }
+            return {
+            url: it.previewUrl,
+            type: "image",
+            publicId: it.id,
+            side: it.side,
+            total: it.total,
+            perClass: it.perClass,
+            note: it.note,
+            };
+        })
+        );
+
         const payload = {
-            ...oldDraft,
-            damagePhotos: damageItems.map((d) => ({
-                url: d.previewUrl,
-                side: d.side,
-                note: d.note,
-                total: d.total,
-                perClass: d.perClass,
-                publicId: d.id,
-               
-            })),
-            agreed,
+        ...oldDraft,
+        damagePhotos,
+        agreed,
         };
 
         localStorage.setItem(ACC_KEY, JSON.stringify(payload));
@@ -92,34 +101,62 @@ export default function AccidentStep3({ onNext, onBack }: StepProps) {
 
     const isValid = damageItems.length > 0 && agreed;
 
+    
+
     // ✅ handler สำหรับ panel
-   const handlePanelChange = async (items: DamagePhotoItem[]) => {
-    const updated: DamagePhotoItem[] = [];
+//    const handlePanelChange = async (items: DamagePhotoItem[]) => {
+//     const updated: DamagePhotoItem[] = [];
 
-    for (const item of items) {
-        if (item.file) {
-        try {
-            const uploaded = await uploadToCloudinary(item.file);
+//     for (const item of items) {
+//         if (item.file) {
+//         try {
+//             const uploaded = await uploadToCloudinary(item.file);
 
-            // 👇 merge field เดิมที่ user กรอกไว้ (side, note, total, perClass)
-            updated.push({
-            ...uploaded,
-            side: item.side || uploaded.side, 
-            note: item.note ?? uploaded.note,
-            total: item.total ?? uploaded.total,
-            perClass: item.perClass ?? uploaded.perClass,
-            });
-        } catch (err) {
-            console.error("Upload failed:", err);
-            updated.push(item);
-        }
-        } else {
-        updated.push(item);
-        }
-    }
+//             // 👇 merge field เดิมที่ user กรอกไว้ (side, note, total, perClass)
+//             updated.push({
+//             ...uploaded,
+//             side: item.side || uploaded.side, 
+//             note: item.note ?? uploaded.note,
+//             total: item.total ?? uploaded.total,
+//             perClass: item.perClass ?? uploaded.perClass,
+//             });
+//         } catch (err) {
+//             console.error("Upload failed:", err);
+//             updated.push(item);
+//         }
+//         } else {
+//         updated.push(item);
+//         }
+//     }
 
-    setDamageItems(updated);
-    };
+//     setDamageItems(updated);
+//     };
+    // const handlePanelChange = async (items: DamagePhotoItem[]) => {
+    //     // อัปโหลดเฉพาะรูปที่ยังไม่ได้อัปโหลด
+    //     const uploadedItems: DamagePhotoItem[] = [];
+
+    //     for (const item of items) {
+    //         if (item.file) {
+    //         try {
+    //             const uploaded = await uploadToCloudinary(item.file);
+    //             uploadedItems.push({
+    //             ...item,
+    //             side: item.side || uploaded.side, 
+    //             note: item.note ?? uploaded.note,
+    //             total: item.total ?? uploaded.total,
+    //             perClass: item.perClass ?? uploaded.perClass,
+    //             });
+    //         } catch (err) {
+    //             console.error("Upload failed:", err);
+    //             uploadedItems.push(item);
+    //         }
+    //         } else {
+    //         uploadedItems.push(item);
+    //         }
+    //     }
+
+    //     setDamageItems(uploadedItems);
+    // };
 
 
     return (
@@ -136,7 +173,7 @@ export default function AccidentStep3({ onNext, onBack }: StepProps) {
                     <div className="rounded-[7px] overflow-hidden">
                         <DamagePhotosPanel
                             apiBaseUrl={process.env.NEXT_PUBLIC_DETECT_API_URL as string}
-                            onChange={handlePanelChange}
+                            onChange={setDamageItems}
                             value={damageItems}
                         />
                     </div>

@@ -16,6 +16,7 @@ type CarItem = {
   car_model: string;
   car_year: string | number;
   car_license_plate: string;
+  registration_province: string;
   policy_number: string;
   insurance_company: string;
   insurance_type: string;
@@ -183,7 +184,7 @@ export default function CarSelection({ onNext, citizenId }: CarSelectionProps) {
             <Info label="ยี่ห้อ" value={selectedCar.car_brand} />
             <Info label="รุ่น" value={selectedCar.car_model} />
             <Info label="ปีที่ผลิต" value={selectedCar.car_year} />
-            <Info label="ทะเบียน" value={selectedCar.car_license_plate} />
+            <Info label="ทะเบียน" value={selectedCar.car_license_plate + " " + selectedCar.registration_province} />
             <Info label="เลขกรมธรรม์" value={selectedCar.policy_number} />
             <Info label="บริษัทประกัน" value={selectedCar.insurance_company} />
             <Info label="ประเภทประกัน" value={selectedCar.insurance_type} />

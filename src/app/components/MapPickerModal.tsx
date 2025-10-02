@@ -118,6 +118,7 @@ export default function MapPickerModal({
 
   const mapDivId = useMemo(() => `leaflet-map-${Math.random().toString(36).slice(2)}`, []);
 
+
   const flyTo = (lat: number, lng: number) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     const map = mapRef.current;
@@ -160,7 +161,13 @@ export default function MapPickerModal({
 
       applyBasemap(basemap); // ⬅️ ใช้ basemap ปัจจุบัน
 
-      const marker = L.marker([start.lat, start.lng], { draggable: true }).addTo(map);
+        const markerIcon = L.icon({
+          iconUrl: "/push-pin.png",   // ไฟล์รูปหมุดใส่ไว้ใน public/
+          iconSize: [30, 30],
+          iconAnchor: [15, 30],
+          popupAnchor: [1, -34],
+        });
+      const marker = L.marker([start.lat, start.lng], { draggable: true, icon: markerIcon }).addTo(map);
       marker.on("dragend", (e: any) => {
         const { lat, lng } = e.target.getLatLng();
         setPick({ lat: +lat.toFixed(6), lng: +lng.toFixed(6) });

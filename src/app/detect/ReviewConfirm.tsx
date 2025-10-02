@@ -36,7 +36,7 @@ type AccidentDraft = {
   province: string | null;
   district: string | null;
   road?: string | null;
-  area_type: string;
+  areaType: string;
   nearby?: string | null;
   details?: string | null;
   location: { lat: number; lng: number; accuracy?: number | null };
@@ -123,6 +123,7 @@ export default function ReviewConfirm({ onBack, onFinish, userId }: ReviewConfir
   const draft: AccidentDraft | null = useMemo(() => {
     try {
       const raw = localStorage.getItem(ACC_KEY);
+      console.log("🚗 Raw draft(ACC_KEY) from localStorage:", raw);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -183,7 +184,7 @@ export default function ReviewConfirm({ onBack, onFinish, userId }: ReviewConfir
         ...draft,
         date: draft.accident_date,
         time: draft.accident_time,
-        area_type: draft.area_type,  // ✅ map เป็น snake_case ให้ backend
+        areaType: draft.areaType,  // ✅ map เป็น snake_case ให้ backend
       };
 
       // ลบ field ที่ frontend ใช้เองออกกันสับสน
@@ -282,8 +283,13 @@ export default function ReviewConfirm({ onBack, onFinish, userId }: ReviewConfir
             />
           </div>
           <p className="text-sm"><span className="font-medium">วัน/เวลา:</span> {draft.accident_date} {draft.accident_time}</p>
-          <p className="text-sm"><span className="font-medium">สถานที่:</span> {draft.province} {draft.district} {draft.road}</p>
-          <p className="text-sm"><span className="font-medium">ประเภทพื้นที่:</span> {draft.area_type}</p>
+          <p className="text-sm">
+            <span className="font-medium">สถานที่:</span>{" "}
+            {draft.province || draft.district || draft.road
+              ? `${draft.province || ""} ${draft.district || ""} ${draft.road || ""}`.trim()
+              : "ไม่ระบุ"}
+          </p>
+          <p className="text-sm"><span className="font-medium">ประเภทพื้นที่:</span> {draft.areaType}</p>
           <p className="text-sm"><span className="font-medium">จุดสังเกต:</span> {draft.nearby}</p>
           {draft.details && (
             <p className="text-sm"><span className="font-medium">รายละเอียด:</span> {draft.details}</p>

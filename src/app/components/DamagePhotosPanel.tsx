@@ -2,8 +2,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCamera, faTrashCan, faImage } from "@fortawesome/free-solid-svg-icons";
-import { FileVideo, Image as ImageIcon, Plus, X, UploadCloud, Trash2 } from "lucide-react";
+import { faCamera } from "@fortawesome/free-solid-svg-icons";
+import { Image as ImageIcon, UploadCloud, X } from "lucide-react";
 
 /** ---------- Types ---------- */
 export type DamageSide = "ซ้าย" | "ขวา" | "หน้า" | "หลัง" | "ไม่ระบุ";
@@ -21,8 +21,8 @@ export type DamagePhotoItem = {
 };
 
 type Props = {
-  apiBaseUrl: string; // เช่น http://localhost:8000
-  value?: DamagePhotoItem[]; // controlled from parent
+  apiBaseUrl: string;
+  value?: DamagePhotoItem[];
   onChange?: (items: DamagePhotoItem[]) => void;
   maxTotalMB?: number; // default 100
 };
@@ -30,67 +30,50 @@ type Props = {
 /** ---------- Component ---------- */
 export default function DamagePhotosPanel({
   apiBaseUrl,
-  value,
+  value ,
   onChange,
   maxTotalMB = 100,
 }: Props) {
   const [items, setItems] = useState<DamagePhotoItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // ใช้ ref เก็บ items ล่าสุด
-  const itemsRef = useRef(items);
-  useEffect(() => {
-    itemsRef.current = items;
-  }, [items]);
-
-  // onChange ล่าสุด
-  const onChangeRef = useRef<Props["onChange"] | null>(null);
-  useEffect(() => {
-    onChangeRef.current = onChange ?? null;
-  }, [onChange]);
-
-  // ---- sync parent -> local ----
+  // sync parent -> local (เฉพาะตอน value เปลี่ยนจริง ๆ)
   useEffect(() => {
     if (!value) return;
 
-    const normalized: DamagePhotoItem[] = value.map((v) => ({
-      id: v.id ?? crypto.randomUUID(),
-      previewUrl: v.previewUrl ?? (v as any).url ?? "",
-      file: v.file ?? null,
-      side: v.side ?? "ไม่ระบุ",
-      detecting: false,
-      total: typeof v.total === "number" ? v.total : undefined,
-      perClass: v.perClass ?? undefined,
-      note: v.note ?? undefined,
-      error: undefined,
-    }));
+    // ทำ deep compare แค่ id
+    const same =
+      value.length === items.length &&
+      value.every((v, i) => v.id === items[i]?.id);
 
-    // เช็คก่อนว่าค่าต่างจาก state ปัจจุบันไหม
-    const isDifferent =
-      normalized.length !== itemsRef.current.length ||
-      normalized.some((n, i) => n.id !== itemsRef.current[i]?.id);
-
-    if (isDifferent) {
-      setItems(normalized);
-
-      if (!selectedId && normalized.length > 0) {
-        setSelectedId(normalized[0].id);
+    if (!same) {
+      setItems(value);
+      if (!selectedId && value.length > 0) {
+        setSelectedId(value[0].id);
       }
     }
-  }, [value, selectedId]);
+  }, [value]); // ✅ เอา selectedId ออก
 
-
-  // ---- emit local -> parent ----
+  // emit local -> parent
   useEffect(() => {
-    onChangeRef.current?.(items);
-  }, [items]);
+    if (onChange) {
+      onChange(items);
+    }
+  }, [items, onChange]);
 
+  // อัปเดตภายใน (มาจากการกระทำของผู้ใช้) และ emit ไป parent
   const mutate = (fn: (prev: DamagePhotoItem[]) => DamagePhotoItem[]) => {
-    setItems((prev) => fn(prev));
+    setItems((prev) => {
+      const next = fn(prev);
+      // นี่คือการเปลี่ยนจากผู้ใช้ ไม่ใช่ sync จาก parent
+      // ปล่อยให้ useEffect([items]) เป็นคน emit (ไม่ตั้ง flag)
+      return next;
+    });
   };
 
-  /** เพิ่มรูปจากไฟล์ */
+  /** เพิ่มรูปจากไฟล์ (image/*) */
   const addFiles = (files: FileList | null, side: DamageSide = "ไม่ระบุ") => {
     if (!files) return;
     const newOnes: DamagePhotoItem[] = Array.from(files)
@@ -103,32 +86,24 @@ export default function DamagePhotosPanel({
         detecting: false,
       }));
     mutate((prev) => [...prev, ...newOnes]);
-    if (!selectedId && newOnes.length > 0) {
-      setSelectedId(newOnes[0].id);
-    }
   };
 
-  /** ลบรูป */
+  /** ลบรูป + revoke เฉพาะ blob: */
   const removeOne = (id: string) => {
     mutate((prev) => {
       const it = prev.find((x) => x.id === id);
-      if (it && it.previewUrl.startsWith("blob:"))
-        URL.revokeObjectURL(it.previewUrl);
-      const filtered = prev.filter((x) => x.id !== id);
-      if (selectedId === id) {
-        setSelectedId(filtered.length > 0 ? filtered[0].id : null);
-      }
-      return filtered;
+      if (it && it.previewUrl.startsWith("blob:")) URL.revokeObjectURL(it.previewUrl);
+      return prev.filter((x) => x.id !== id);
     });
   };
 
+  /** ตั้งค่าด้านของรถ */
   const setSide = (id: string, side: DamageSide) =>
     mutate((prev) => prev.map((x) => (x.id === id ? { ...x, side } : x)));
 
+
   const updateNote = (id: string, note: string) =>
-    mutate((prev) =>
-      prev.map((x) => (x.id === id ? { ...x, note } : x))
-    );
+    mutate((prev) => prev.map((x) => (x.id === id ? { ...x, note } : x)));
 
   const selectedItem = items.find((x) => x.id === selectedId);
 
@@ -181,101 +156,104 @@ export default function DamagePhotosPanel({
         </div>
       </div>
 
-      {/* 🟣 รายการรูปแบบใหม่: ซ้าย list + ขวา preview */}
-   
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Sidebar */}
-          <div className="bg-violet-50 rounded-lg p-4 flex flex-col">
-            <h3 className="text-sm font-semibold text-zinc-800 mb-3 flex items-center gap-2">
-              <UploadCloud className="w-4 h-4 text-violet-600" /> รายการอัปโหลด
-            </h3>
+      {/* 🟣 รายการรูป + Preview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Sidebar */}
+        <div className="bg-violet-50 rounded-lg p-4 flex flex-col">
+          <h3 className="text-sm font-semibold text-zinc-800 mb-3 flex items-center gap-2">
+            <UploadCloud className="w-4 h-4 text-violet-600" /> รายการอัปโหลด
+          </h3>
 
-            {items.length === 0 ? (
-              <div className="text-sm text-black text-center">
-                ยังไม่มีรูปความเสียหาย
-              </div>
-            ) : (
-              <div className="flex-1 space-y-3 overflow-y-auto">
-                <ul className="space-y-2">
-                  {items.map((it) => (
-                    <li
-                      key={it.id}
-                      className={`relative flex items-center gap-2 px-3 py-2 rounded-md text-sm transition cursor-pointer ${selectedId === it.id
-                          ? "bg-violet-600 text-white"
-                          : "bg-white hover:bg-violet-100 text-zinc-700"
-                        }`}
-                      onClick={() => setSelectedId(it.id)}
+          {items.length === 0 ? (
+            <div className="text-sm text-black text-center">
+              ยังไม่มีรูปความเสียหาย
+            </div>
+          ) : (
+            <div className="flex-1 space-y-3 overflow-y-auto">
+              <ul className="space-y-2">
+                {items.map((it) => (
+                  <li
+                    key={it.id}
+                    className={`relative flex items-center gap-2 px-3 py-2 rounded-md text-sm transition cursor-pointer ${
+                      selectedId === it.id
+                        ? "bg-violet-600 text-white"
+                        : "bg-white hover:bg-violet-100 text-zinc-700"
+                    }`}
+                    onClick={() => setSelectedId(it.id)}
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    <span className="flex-1 truncate">{it.id.slice(0, 10)}...</span>
+
+                    {/* Dropdown เลือกด้าน */}
+                    <select
+                      value={it.side}
+                      onChange={(e) =>
+                        setSide(it.id, e.target.value as DamageSide)
+                      }
+                      className="rounded-full bg-[#DEDCFF]/70 text-black text-xs px-2 py-1 mr-6"
                     >
-                      <ImageIcon className="w-4 h-4" />
-                      <span className="flex-1 truncate">{it.id.slice(0, 10)}...</span>
+                      <option value="ไม่ระบุ">ไม่ระบุ</option>
+                      <option value="ซ้าย">ด้านซ้าย</option>
+                      <option value="ขวา">ด้านขวา</option>
+                      <option value="หน้า">ด้านหน้า</option>
+                      <option value="หลัง">ด้านหลัง</option>
+                    </select>
 
-                      {/* Dropdown เลือกด้าน */}
-                      <select
-                        value={it.side}
-                        onChange={(e) => setSide(it.id, e.target.value as DamageSide)}
-                        className="rounded-full bg-[#DEDCFF]/70 text-black text-xs px-2 py-1 mr-6"
-                      >
-                        <option value="ไม่ระบุ">ไม่ระบุ</option>
-                        <option value="ซ้าย">ด้านซ้าย</option>
-                        <option value="ขวา">ด้านขวา</option>
-                        <option value="หน้า">ด้านหน้า</option>
-                        <option value="หลัง">ด้านหลัง</option>
-                      </select>
-
-                         
-                      {/* ปุ่มลบ */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeOne(it.id);
-                        }}
-                        className={`absolute top-1 right-1 rounded-[8px] transition ${selectedId === it.id
-                            ? "bg-[#FF4A4A] text-white hover:bg-[#e53e3e]"
-                            : "bg-zinc-200 text-zinc-600 hover:bg-red-100 hover:text-red-600"
-                          }`}
-                      >
-                        <X className="w-4 h-4  " />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          {/* Preview */}
-          <div className="md:col-span-2 bg-zinc-50 rounded-lg p-4 shadow flex items-center justify-center">
-            {selectedItem ? (
-              <div className="flex flex-col space-y-3 w-full">
-                
-                <div className="flex justify-center">
-                  <img
-                    src={selectedItem.previewUrl}
-                    alt="preview"
-                    className="max-h-[360px] rounded object-contain"
-                  />
-                </div>
-                <div>
-                  <p className="font-medium text-black text-sm mb-1">อธิบายภาพความเสียหาย</p>
-                  <textarea
-                    value={selectedItem.note || ""}
-                    onChange={(e) => updateNote(selectedItem.id, e.target.value)}
-                    placeholder="เขียนอธิบายรายละเอียดของภาพ..."
-                    className="w-full rounded  px-3 py-2 text-sm resize-none bg-white text-black rounded-[8px]"
-                    rows={3}
-                  />
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-center text-zinc-500">
-                เลือกรายการจากด้านซ้ายเพื่อดูรายละเอียด
-              </p>
-            )}
-          </div>
+                    {/* ปุ่มลบ */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeOne(it.id);
+                      }}
+                      className={`absolute top-1 right-1 rounded-[8px] transition ${
+                        selectedId === it.id
+                          ? "bg-[#FF4A4A] text-white hover:bg-[#e53e3e]"
+                          : "bg-zinc-200 text-zinc-600 hover:bg-red-100 hover:text-red-600"
+                      }`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-     
 
+        {/* Preview */}
+        <div className="md:col-span-2 bg-zinc-50 rounded-lg p-4 shadow flex items-center justify-center">
+          {selectedItem ? (
+            <div className="flex flex-col space-y-3 w-full">
+              <div className="flex justify-center">
+                <img
+                  src={selectedItem.previewUrl}
+                  alt="preview"
+                  className="max-h-[360px] rounded object-contain"
+                />
+              </div>
+              <div>
+                <p className="font-medium text-black text-sm mb-1">
+                  อธิบายภาพความเสียหาย
+                </p>
+                <textarea
+                  value={selectedItem.note || ""}
+                  onChange={(e) =>
+                    updateNote(selectedItem.id, e.target.value)
+                  }
+                  placeholder="เขียนอธิบายรายละเอียดของภาพ..."
+                  className="w-full rounded px-3 py-2 text-sm resize-none bg-white text-black rounded-[8px]"
+                  rows={3}
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-center text-zinc-500">
+              เลือกรายการจากด้านซ้ายเพื่อดูรายละเอียด
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

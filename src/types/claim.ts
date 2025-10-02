@@ -58,7 +58,7 @@ export type ClaimStatus =
   | "เอกสารต้องแก้ไขเพิ่มเติม";
 
 export type MediaItem = {
-  id: number;
+  id?: number;
   url: string;
   type?: "image" | "video";
   publicId?: string;
