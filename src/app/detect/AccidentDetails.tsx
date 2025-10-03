@@ -10,8 +10,8 @@ type AccidentType =
   | "ถูกของตกใส่"
   | "ชนสัตว์"
   | "ชนสิ่งของ"
-  | "ไฟไหม้"
-  | "น้ำท่วม"
+  // | "ไฟไหม้"
+  // | "น้ำท่วม"
   | "ยางรั่ว/ยางแตก"
   | "อื่นๆ";
 
@@ -28,8 +28,8 @@ const ACCIDENT_TYPES: { key: AccidentType; label: string; image?: string }[] = [
   { key: "ถูกของตกใส่", label: "ถูกของตกใส่", image: "/accident-icons/drop.png" },
   { key: "ชนสัตว์", label: "ชนสัตว์", image: "/accident-icons/animal.png" },
   { key: "ชนสิ่งของ", label: "ชนสิ่งของ", image: "/accident-icons/crash.png" },
-  { key: "ไฟไหม้", label: "ไฟไหม้", image: "/accident-icons/fire.png" },
-  { key: "น้ำท่วม", label: "น้ำท่วม", image: "/accident-icons/flood.png" },
+  // { key: "ไฟไหม้", label: "ไฟไหม้", image: "/accident-icons/fire.png" },
+  // { key: "น้ำท่วม", label: "น้ำท่วม", image: "/accident-icons/flood.png" },
   { key: "ยางรั่ว/ยางแตก", label: "ยางรั่ว/ยางแตก", image: "/accident-icons/wheel.png" },
   { key: "อื่นๆ", label: "อื่น ๆ", image: "/accident-icons/etc.png" },
 ];

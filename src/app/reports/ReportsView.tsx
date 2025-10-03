@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import ReportCard from "./ReportCard";
 import type { ClaimItem } from "@/types/claim";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, ArrowLeft } from "lucide-react";
 import ReportDetail from "./ReportDetail";
-import PrintClaimButton from "../components/PrintClaim";
+
 const cx = (...xs: Array<string | false | null | undefined>) =>
   xs.filter(Boolean).join(" ");
 
@@ -25,20 +24,17 @@ export default function ReportsView({
   claims: ClaimItem[];
   onOpenPdf: (id: string) => void;
 }) {
-  // default เลือกเคสที่ใหม่สุด
-  const defaultSelected =
-    [...claims].sort(
-      (a, b) => +new Date(b.updated_at) - +new Date(a.updated_at)
-    )[0]?.id ?? null;
+  // const defaultSelected =
+  //   [...claims].sort(
+  //     (a, b) => +new Date(b.updated_at) - +new Date(a.updated_at)
+  //   )[0]?.id ?? null;
 
-  const [selectedId, setSelectedId] = useState<string | null>(defaultSelected);
-  useEffect(() => setSelectedId(defaultSelected), [defaultSelected]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // useEffect(() => setSelectedId(defaultSelected), [defaultSelected]);
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-
     "ทั้งหมด" | "กำลังตรวจสอบ" | "สำเร็จ" | "ปฏิเสธ" | "ข้อมูลไม่ครบ"
-
   >("ทั้งหมด");
 
   const filtered = useMemo(() => {
@@ -51,7 +47,8 @@ export default function ReportsView({
         c.damageAreas?.toString().toLowerCase().includes(q) ||
         c.severitySummary?.toLowerCase().includes(q) ||
         thDateTime(c.incidentDate).includes(q);
-      const matchStatus = statusFilter === "ทั้งหมด" || c.status === statusFilter;
+      const matchStatus =
+        statusFilter === "ทั้งหมด" || c.status === statusFilter;
       return matchText && matchStatus;
     });
   }, [claims, query, statusFilter]);
@@ -60,18 +57,16 @@ export default function ReportsView({
     () => claims.find((c) => c.id === selectedId) ?? null,
     [claims, selectedId]
   );
+
   const [open, setOpen] = useState(false);
+
   return (
-    <div className="mx-auto max-w-7xl px-4 lg:px-6 py-6 ">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,0.5fr)_minmax(0,1fr)] ">
-
-
-
-        {/* Sidebar */}
-        <section className="lg:h-auto mb-120">
-          <div className="rounded-[8px] bg-[#E5E5E5] p-4 md:p-5 ring-1 ring-zinc-200/70 shadow-sm flex flex-col">
-
-            {/* Search + Filter */}
+    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6">
+      {/* --- Mobile Mode (stack, toggle list/detail) --- */}
+      <div className="md:hidden">
+        {!selected ? (
+          // 📌 Mobile: List full screen
+          <div className="flex flex-col gap-3">
             <div className="flex gap-2 mb-4">
               <div className="relative flex-1">
                 <Search
@@ -83,11 +78,9 @@ export default function ReportsView({
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="ค้นหารายการเคลม"
                   className="w-full rounded-lg bg-white px-10 py-2 text-sm text-zinc-800 placeholder-zinc-400
-                     ring-1 ring-zinc-200 focus:ring-2 focus:ring-violet-400 shadow-sm outline-none"
+                    ring-1 ring-zinc-200 focus:ring-2 focus:ring-violet-400 shadow-sm outline-none"
                 />
               </div>
-
-              {/* Dropdown */}
               <div className="relative">
                 <button
                   type="button"
@@ -97,10 +90,11 @@ export default function ReportsView({
                   {statusFilter}
                   <ChevronDown size={16} />
                 </button>
-
                 {open && (
                   <div className="absolute right-0 mt-2 w-44 rounded-lg bg-white shadow-lg ring-1 ring-black/10 z-10">
-                    {(["ทั้งหมด", "กำลังตรวจสอบ", "สำเร็จ", "ปฏิเสธ", "ข้อมูลไม่ครบ"] as const).map((s) => (
+                    {(
+                      ["ทั้งหมด", "กำลังตรวจสอบ", "สำเร็จ", "ปฏิเสธ", "ข้อมูลไม่ครบ"] as const
+                    ).map((s) => (
                       <div
                         key={s}
                         onClick={() => {
@@ -116,81 +110,117 @@ export default function ReportsView({
                 )}
               </div>
             </div>
+<div className="flex flex-col space-y-3">
+            {filtered.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => setSelectedId(item.id)}
+                className="flex items-center gap-3 rounded-lg bg-white px-3 py-3 shadow cursor-pointer hover:bg-violet-100"
+              >
+                <div className="h-12 w-12 rounded-md overflow-hidden bg-zinc-200">
+                  {item.car_path ? (
+                    <img
+                      src={item.car_path}
+                      alt={item.carTitle}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-xs text-zinc-500">ภาพ</span>
+                  )}
+                </div>
+                <div className="flex flex-col flex-1 min-w-0">
+                  <p className="font-semibold truncate text-black">
+                    {item.car_brand} {item.car_model}
+                  </p>
+                  <span className="text-xs text-black">
+                    {thDateTime(item.incidentDate)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          </div>
+        ) : (
+          // 📌 Mobile: Detail full screen
+          <div className="flex flex-col h-[calc(100vh-6rem)] overflow-y-auto">
+            <button
+              onClick={() => setSelectedId(null)}
+              className="flex items-center gap-2 mb-3 text-sm text-violet-600 hover:underline"
+            >
+              <ArrowLeft size={16} /> กลับไปเลือกเคลม
+            </button>
+            <ReportDetail
+              claim={selected}
+              onOpenPdf={() =>
+                window.open(
+                  `http://localhost:3001/api/claim-requests/detail?claim_id=${selected.id}`,
+                  "_blank"
+                )
+              }
+            />
+          </div>
+        )}
+      </div>
 
-            {/* รายการ (สูงสุด 6) */}
-           
-            <div className="mt-4 flex flex-col gap-3 max-h-[432px] overflow-y-auto">
-              {[...filtered]
-                .sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at))
-                .map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedId(item.id)}
-                    className={cx(
-                      "grid grid-cols-[60px_1fr] items-center gap-3 rounded-[8px] px-3 py-3 cursor-pointer transition",
-                      item.id === selectedId
-                        ? "bg-[#6F47E4] text-white"
-                        : "bg-white text-black hover:bg-[#6F47E4]/30"
-                    )}
-                  >
-                    {/* ซ้าย: รูป */}
-                    <div className="flex h-12 w-12 items-center justify-center rounded-md bg-white text-black text-xs font-medium overflow-hidden">
-                      {item.car_path ? (
-                        <img
-                          src={item.car_path}
-                          alt={item.carTitle}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        "ภาพ"
-                      )}
-                    </div>
+      {/* --- Desktop Mode (2 panel side by side) --- */}
+      <div className="hidden md:ml-24 md:grid gap-6 grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] min-[1378px]:grid-cols-[300px_1fr] h-[calc(100vh-6rem)]">
+        <aside className="overflow-y-auto pr-2 space-y-3">
+          {filtered.map((item) => (
 
-                    {/* ขวา */}
-                    <div className="flex flex-col min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="font-semibold truncate">
-                          {item.car_brand} {item.car_model}
-                        </p>
-                        <span
-                          className={cx(
-                            "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold",
-                            item.status === "กำลังตรวจสอบ" && "bg-yellow-400 text-black",
-                            item.status === "สำเร็จ" && "bg-green-500 text-white",
-                            item.status === "เอกสารไม่ผ่านการตรวจสอบ" && "bg-red-500 text-white",
-                            item.status === "เอกสารต้องแก้ไขเพิ่มเติม" && "bg-orange-200 text-orange-800"
-                          )}
-                        >
-                          {item.status}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-xs opacity-90">
-                        <span className="truncate">อุบัติเหตุ: {item.incidentType ?? ""}</span>
-                        <span>เมื่อวันที่:{thDateTime(item.incidentDate)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            <div
+              key={item.id}
+              onClick={() => setSelectedId(item.id)}
+              className={cx(
+                "group flex items-center gap-3 rounded-lg px-3 py-3 cursor-pointer transition",
+                item.id === selectedId
+                  ? "bg-[#EDE9FE] border border-violet-400" // bg highlight อ่อน ๆ
+                  : "bg-white hover:bg-violet-100 border border-zinc-200"
+              )}
+            >
+              {/* รูป */}
+              <div className="h-12 w-12 rounded-md overflow-hidden bg-zinc-200">
+                {item.car_path ? (
+                  <img
+                    src={item.car_path}
+                    alt={item.carTitle}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-xs text-black">ภาพ</span>
+                )}
+              </div>
+
+              {/* ข้อความ */}
+              <div className="flex flex-col flex-1 min-w-0">
+                <p className="font-semibold truncate text-black">
+                  {item.car_brand} {item.car_model}
+                </p>
+                <span className="text-xs text-black">
+                  {thDateTime(item.incidentDate)}
+                </span>
+              </div>
             </div>
 
-          </div>
-        </section>
 
-        <section className="overflow-y-auto max-h-[calc(100vh-6rem)]">
+
+          ))}
+        </aside>
+
+        <section className="overflow-y-auto pl-2">
           {selected ? (
-
             <ReportDetail
-              
               claim={selected}
-              onOpenPdf={() => {
-              window.open(`http://localhost:3001/api/claim-requests/detail?claim_id=${selected.id}`, "_blank");
-            }}
+              onOpenPdf={() =>
+                window.open(
+                  `http://localhost:3001/api/claim-requests/detail?claim_id=${selected.id}`,
+                  "_blank"
+                )
+              }
             />
           ) : (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-black/70">
-              เลือกรายการจากด้านขวาเพื่อแสดงรายละเอียด
+            <div className="p-6 text-zinc-500">
+              เลือกรายการจากด้านซ้ายเพื่อดูรายละเอียด
             </div>
-            
           )}
         </section>
       </div>
