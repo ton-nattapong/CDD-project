@@ -26,6 +26,7 @@ const navItemsCustomer = [
   { icon: <Car size={20} />, href: "/detect", label: "การตรวจจับ" },
   { icon: <FileText size={20} />, href: "/reports", label: "การเคลมของฉัน" },
   { icon: <Mail size={20} />, href: "/contact", label: "กล่องข้อความ" },
+  { icon: <UserCheck size={20} />, href: "/users", label: "ข้อมูลของฉัน" },
   //{ icon: <UserCheck size={20} />, href: "/claim", label: "สร้างการเคลมใหม่" }, // mobile only
 ];
 

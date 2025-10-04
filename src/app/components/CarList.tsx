@@ -13,6 +13,8 @@ type CarItem = {
   car_license_plate: string;
   coverage_start_date: string; // ✅ เพิ่ม
   coverage_end_date: string;   // ✅ เพิ่ม
+  registration_province: string;
+
 };
 
 export default function CarList({ citizenId }: { citizenId: string }) {
@@ -81,55 +83,50 @@ export default function CarList({ citizenId }: { citizenId: string }) {
   if (!cars.length) return <p className="text-center">ไม่พบข้อมูลรถ</p>;
 
   return (
-<div
-          className="-mx-3 px-3 py-3 sm:mx-0 sm:px-0 chip-scroller flex gap-3 sm:gap-4 overflow-x-auto scroll-smooth"
-          style={{
-            scrollbarWidth: "thin", // Firefox
-            scrollbarColor: "#6D5BD0 #E5E7EB", // สี thumb / track
-          }}
-        >
-  {cars.map((car) => {
-    const { remainingDays, percent } = calcCoverage(
-      car.coverage_start_date,
-      car.coverage_end_date
-    );
+    <div
+      className="-mx-3 px-3 py-3 sm:mx-0 sm:px-0 chip-scroller flex gap-3 sm:gap-4 overflow-x-auto scroll-smooth"
+      style={{
+        scrollbarWidth: "thin", // Firefox
+        scrollbarColor: "#6D5BD0 #E5E7EB", // สี thumb / track
+      }}
+    >
+      {cars.map((car) => {
+        const { remainingDays, percent } = calcCoverage(
+          car.coverage_start_date,
+          car.coverage_end_date
+        );
 
-    return (
-      <Link
-        key={car.id}
-        href={" "}
-        // href={`/user/car/${car.id}`}
-        className="w-[250px] flex-shrink-0 rounded-[7px] p-4 bg-white hover:bg-[#f1f1f1] transition text-center shadow-sm"
-      >
-        <img
-          src={car.car_path?.startsWith("http") ? car.car_path : `/${car.car_path}`}
-          alt={`${car.car_brand} ${car.car_model}`}
-          className="w-full h-40 object-cover rounded-[7px] mb-3"
-        />
-        <div className="font-semibold text-zinc-800">
-          {car.car_brand} {car.car_model}
-        </div>
-        <div className="text-sm text-zinc-600">ปี {car.car_year}</div>
-        <span className="mt-2 inline-block rounded-[7px] px-3 py-1 text-sm bg-[#DDDDDD] text-black">
-          {car.car_license_plate}
-        </span>
-
-        {/* Progress bar */}
-        {/* <div className="mt-3">
-          <div className="w-full h-3 bg-gray-300 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#6D5BD0] rounded-full transition-all"
-              style={{ width: `${percent}%` }}
+        return (
+          <div
+            key={car.id}
+            className="w-[250px] flex-shrink-0 rounded-[7px] p-4 bg-white hover:bg-[#f1f1f1] transition text-center shadow-sm"
+          >
+            <img
+              src={car.car_path?.startsWith("http") ? car.car_path : `/${car.car_path}`}
+              alt={`${car.car_brand} ${car.car_model}`}
+              className="w-full h-40 object-cover rounded-[7px] mb-3"
             />
+            <div className="font-semibold text-zinc-800">
+              {car.car_brand} {car.car_model}
+            </div>
+            <div className="text-sm text-zinc-600">ปี {car.car_year}</div>
+
+            {/* ✅ ทะเบียนอยู่บน จังหวัดอยู่ล่าง */}
+            <div className="mt-2 flex flex-col items-center gap-1 bg-[#DDDDDD]">
+              <span className="inline-block rounded-[7px] px-3 py-1 text-sm  text-black">
+                {car.car_license_plate}
+
+              </span>
+              <span className="inline-block rounded-[7px] px-3 py-1 text-sm  text-black">
+
+                {car.registration_province}
+              </span>
+            </div>
           </div>
-          <div className="mt-1 text-xs text-right text-zinc-700">
-            สิ้นสุดความคุ้มครองในอีก {remainingDays} วัน
-          </div>
-        </div> */}
-      </Link>
-    );
-  })}
-</div>
+
+        );
+      })}
+    </div>
 
 
 
