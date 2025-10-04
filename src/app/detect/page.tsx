@@ -10,8 +10,8 @@ const bodyFont = Noto_Sans_Thai({ subsets: ['thai', 'latin'], weight: ['400', '5
 
 import CarSelection from './CarSelection';
 import AccidentStep1 from './AccidentDetails';
-import AccidentStep2 from './AccidentStep2';
-import AccidentStep3 from './AccidentStep3';
+import AccidentStep2 from './AccidentLocation';
+import AccidentStep3 from './AccidentDamageUpload';
 import ReviewConfirm from './ReviewConfirm';
 import ProgressBar from "../components/ProgressBar";
 

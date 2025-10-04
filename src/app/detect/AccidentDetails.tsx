@@ -156,8 +156,14 @@ export default function AccidentStep1({ onNext, onBack }: StepProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    handleFilesUpload(files);
+     if (files.length > 0) {
+      handleFilesUpload(files);
+    }
+    // ✅ reset value เพื่อให้อัปโหลดไฟล์ชื่อซ้ำได้
+    e.target.value = "";
   };
+ const canProceed =
+    evidenceFiles.length > 0 && evidenceFiles.every((f) => f.progress === 100);
 
   const handleRemove = (i: number) => {
     const updated = evidenceFiles.filter((_, idx) => idx !== i);
@@ -326,9 +332,14 @@ export default function AccidentStep1({ onNext, onBack }: StepProps) {
               ย้อนกลับ
             </button>
           )}
-          <button
+           <button
             type="submit"
-            className="w-full sm:w-auto rounded-[7px] bg-[#6F47E4] hover:bg-[#6F47E4]/80 text-white px-6 py-2 font-medium"
+            disabled={!canProceed} // ✅ ถ้ายังอัปโหลดไม่เสร็จ หรือไม่มีไฟล์ → disable
+            className={`w-full sm:w-auto rounded-[7px] px-6 py-2 font-medium 
+              ${canProceed
+                ? "bg-[#6F47E4] hover:bg-[#6F47E4]/80 text-white"
+                : "bg-zinc-300 text-zinc-500 cursor-not-allowed"
+              }`}
           >
             ถัดไป
           </button>
