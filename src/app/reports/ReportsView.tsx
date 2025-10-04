@@ -110,7 +110,7 @@ export default function ReportsView({
                 )}
               </div>
             </div>
-            <div className="flex flex-col space-y-3">
+            <div className="flex flex-col space-y-3 flex-1 overflow-y-auto max-h-[calc(80dvh-9rem)] pb-[env(safe-area-inset-bottom)]">
               {filtered.map((item) => (
                 <div
                   key={item.id}
@@ -140,44 +140,48 @@ export default function ReportsView({
               ))}
             </div>
           </div>
+          
         ) : (
-          // 📌 Mobile: Detail full screen
-          <div className="flex flex-col h-[calc(100vh-6rem)] overflow-y-auto">
-            <button
-              onClick={() => setSelectedId(null)}
-              className="flex items-center gap-2 mb-3 text-sm text-violet-600 hover:underline"
-            >
-              <ArrowLeft size={16} /> กลับไปเลือกเคลม
-            </button>
-            <ReportDetail
-              claim={selected}
-              onOpenPdf={() =>
-                window.open(
-                  `http://localhost:3001/api/claim-requests/detail?claim_id=${selected.id}`,
-                  "_blank"
-                )
-              }
-            />
+          // 📌 Mobile: Detail overlay (เวอร์ชันชัวร์สุด)
+          <div className="fixed inset-0 z-50 bg-white flex flex-col">
+            {/* Header กลับ */}
+            <div className="sticky top-0 bg-white border-b z-10">
+              <button
+                onClick={() => setSelectedId(null)}
+                className="flex items-center gap-2 px-4 py-3 text-sm text-violet-600 hover:underline"
+              >
+                <ArrowLeft size={16} /> กลับไปเลือกเคลม
+              </button>
+            </div>
+
+            {/* เนื้อหา scroll ได้แน่นอน */}
+            <div className="flex-1 overflow-y-auto px-4 pb-24 touch-pan-y">
+              <ReportDetail
+                claim={selected}
+                onOpenPdf={() =>
+                  window.open(
+                    `http://localhost:3001/api/claim-requests/detail?claim_id=${selected.id}`,
+                    "_blank"
+                  )
+                }
+              />
+            </div>
           </div>
         )}
       </div>
 
       {/* --- Desktop Mode (2 panel side by side) --- */}
       <div className="hidden md:ml-24 md:grid gap-6 grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] min-[1378px]:grid-cols-[300px_1fr] h-[calc(100vh-6rem)]">
-        <aside className="overflow-y-auto pr-2 space-y-3">
+        <div
+          className="flex flex-col space-y-3 overflow-y-auto overscroll-contain"
+          style={{ height: "calc(90dvh - 9rem)", paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
           {filtered.map((item) => (
-
             <div
               key={item.id}
               onClick={() => setSelectedId(item.id)}
-              className={cx(
-                "group flex items-center gap-3 rounded-lg px-3 py-3 cursor-pointer transition",
-                item.id === selectedId
-                  ? "bg-[#EDE9FE] border border-violet-400" // bg highlight อ่อน ๆ
-                  : "bg-white hover:bg-violet-100 border border-zinc-200"
-              )}
+              className="flex items-center gap-3 rounded-lg bg-white px-3 py-3 shadow cursor-pointer hover:bg-violet-100"
             >
-              {/* รูป */}
               <div className="h-12 w-12 rounded-md overflow-hidden bg-zinc-200">
                 {item.car_path ? (
                   <img
@@ -186,11 +190,9 @@ export default function ReportsView({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="text-xs text-black">ภาพ</span>
+                  <span className="text-xs text-zinc-500">ภาพ</span>
                 )}
               </div>
-
-              {/* ข้อความ */}
               <div className="flex flex-col flex-1 min-w-0">
                 <p className="font-semibold truncate text-black">
                   {item.car_brand} {item.car_model}
@@ -200,11 +202,8 @@ export default function ReportsView({
                 </span>
               </div>
             </div>
-
-
-
           ))}
-        </aside>
+        </div>
 
         <section className="overflow-y-auto pl-2">
           {selected ? (
