@@ -231,7 +231,7 @@ router.get('/list', async (req: Request, res: Response) => {
       JOIN accident_details ad ON ad.id = cr.accident_detail_id
       LEFT JOIN insurance_policies ip ON ip.id = cr.selected_car_id
       WHERE ($1::int IS NULL OR cr.user_id = $1)
-      ORDER BY COALESCE(ad.accident_date, cr.created_at::date) DESC, cr.created_at DESC
+      ORDER BY COALESCE(cr.updated_at, cr.created_at::date) DESC, cr.created_at DESC
       LIMIT $2
       `,
       [userId, limit]

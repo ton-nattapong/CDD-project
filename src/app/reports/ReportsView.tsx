@@ -110,35 +110,35 @@ export default function ReportsView({
                 )}
               </div>
             </div>
-<div className="flex flex-col space-y-3">
-            {filtered.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => setSelectedId(item.id)}
-                className="flex items-center gap-3 rounded-lg bg-white px-3 py-3 shadow cursor-pointer hover:bg-violet-100"
-              >
-                <div className="h-12 w-12 rounded-md overflow-hidden bg-zinc-200">
-                  {item.car_path ? (
-                    <img
-                      src={item.car_path}
-                      alt={item.carTitle}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-xs text-zinc-500">ภาพ</span>
-                  )}
+            <div className="flex flex-col space-y-3">
+              {filtered.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedId(item.id)}
+                  className="flex items-center gap-3 rounded-lg bg-white px-3 py-3 shadow cursor-pointer hover:bg-violet-100"
+                >
+                  <div className="h-12 w-12 rounded-md overflow-hidden bg-zinc-200">
+                    {item.car_path ? (
+                      <img
+                        src={item.car_path}
+                        alt={item.carTitle}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-xs text-zinc-500">ภาพ</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <p className="font-semibold truncate text-black">
+                      {item.car_brand} {item.car_model}
+                    </p>
+                    <span className="text-xs text-black">
+                      {thDateTime(item.incidentDate)}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col flex-1 min-w-0">
-                  <p className="font-semibold truncate text-black">
-                    {item.car_brand} {item.car_model}
-                  </p>
-                  <span className="text-xs text-black">
-                    {thDateTime(item.incidentDate)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
           </div>
         ) : (
           // 📌 Mobile: Detail full screen
@@ -212,7 +212,7 @@ export default function ReportsView({
               claim={selected}
               onOpenPdf={() =>
                 window.open(
-                  `http://localhost:3001/api/claim-requests/detail?claim_id=${selected.id}`,
+                  `${process.env.NEXT_PUBLIC_URL_PREFIX}/api/claim-requests/detail?claim_id=${selected.id}`,
                   "_blank"
                 )
               }

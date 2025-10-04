@@ -76,18 +76,20 @@ export default function DamagePhotosPanel({
   /** เพิ่มรูปจากไฟล์ (image/*) */
   const addFiles = (files: FileList | null, side: DamageSide = "ไม่ระบุ") => {
     if (!files) return;
+
     const newOnes: DamagePhotoItem[] = Array.from(files)
       .filter((f) => f.type.startsWith("image/"))
       .map((file) => ({
-        id: crypto.randomUUID(),
+        // ✅ random id ใหม่ทุกครั้ง เพื่อ force re-render
+        id: `${crypto.randomUUID()}_${Date.now()}`,
         file,
         previewUrl: URL.createObjectURL(file),
         side,
         detecting: false,
       }));
+
     mutate((prev) => [...prev, ...newOnes]);
   };
-
   /** ลบรูป + revoke เฉพาะ blob: */
   const removeOne = (id: string) => {
     mutate((prev) => {
@@ -106,6 +108,16 @@ export default function DamagePhotosPanel({
     mutate((prev) => prev.map((x) => (x.id === id ? { ...x, note } : x)));
 
   const selectedItem = items.find((x) => x.id === selectedId);
+    // 🟣 cleanup blob URL เวลา component ถูก unmount
+  useEffect(() => {
+    return () => {
+      items.forEach((it) => {
+        if (it.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(it.previewUrl);
+        }
+      });
+    };
+  }, [items]);
 
   return (
     <div className="rounded-[7px] p-4 bg-white">
@@ -149,7 +161,11 @@ export default function DamagePhotosPanel({
                 accept="image/*"
                 multiple
                 className="hidden"
-                onChange={(e) => addFiles(e.target.files, side)}
+                onChange={(e) => {
+                  addFiles(e.target.files, side);
+                  // ✅ reset value เพื่อให้เลือกไฟล์เดิมได้
+                  e.target.value = "";
+                }}
               />
             </label>
           ))}
