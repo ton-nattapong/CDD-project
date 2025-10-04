@@ -89,6 +89,8 @@ export default function DamagePhotosPanel({
       }));
 
     mutate((prev) => [...prev, ...newOnes]);
+      // 🟣 ✅ เพิ่มตรงนี้ เพื่อเลือกภาพล่าสุดอัตโนมัติ
+    setSelectedId(newOnes[newOnes.length - 1].id);
   };
   /** ลบรูป + revoke เฉพาะ blob: */
   const removeOne = (id: string) => {
@@ -117,7 +119,7 @@ export default function DamagePhotosPanel({
         }
       });
     };
-  }, [items]);
+  }, []);
 
   return (
     <div className="rounded-[7px] p-4 bg-white">
