@@ -12,8 +12,10 @@ import type {
   Car,
   AccidentDraft,
   User,
+  DamagePhoto,
 } from "@/types/claim";
 import PdfRequest from "@/app/reports/PdfRequest";
+import { it } from "node:test";
 
 // ---------- Config ----------
 const URL_PREFIX =
@@ -68,6 +70,27 @@ async function fetchClaimsByUser(userId: number): Promise<ClaimItem[]> {
 
   return rows.map((r) => {
     const status = normalizeStatus(r.status);
+    console.log("r.images =", r.images );
+        // map evaluation_images → DamagePhoto[]
+    const damagePhotos: DamagePhoto[] = Array.isArray(r.images)
+        ? r.images.map((img) => {
+        const side: DamagePhoto["side"] =
+          img.side === "ซ้าย" ||
+          img.side === "ขวา" ||
+          img.side === "หน้า" ||
+          img.side === "หลัง"
+          ? img.side
+          : "ไม่ระบุ";
+    
+          return {
+            id: img.id,
+            url: img.original_url ?? "",
+            type: "image",
+            side,
+            note: img.damage_note ?? undefined,
+            };
+          })
+          : [];
     return {
       id: String(r.claim_id ?? r.report_id ?? r.accident_detail_id),
       carTitle: r.car_title ?? `${r.car_brand ?? "รถ"} ${r.car_model ?? ""} ทะเบียน ${r.license_plate ?? "-"}`,
@@ -78,6 +101,8 @@ async function fetchClaimsByUser(userId: number): Promise<ClaimItem[]> {
       status,
       steps: r.steps ?? [],   // <-- เก็บ timeline
       photoUrl: r.thumbnail_url ?? r.first_image_url ?? (Array.isArray(r.images) ? r.images[0]?.original_url : undefined),
+      car_path: r.car_path,
+      damagePhotos: damagePhotos,
     } as ClaimItem;
   });
 }
@@ -120,68 +145,124 @@ function RequestCard({
   onOpenPdf: (id: string) => void;
 }) {
   return (
-    <div className="rounded-3xl border border-emerald-300 bg-emerald-50/50 p-4 shadow-sm transition hover:shadow-md">
-      <div className="flex gap-4">
-        {/* รูป */}
-        <div className="h-28 w-40 shrink-0 overflow-hidden rounded-xl ring-1 ring-emerald-200 bg-white">
-          {item.photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.photoUrl} alt={item.carTitle} className="h-full w-full object-cover" />
+    <div className="group relative overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm hover:shadow-md hover:border-emerald-300 transition-all duration-200">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+        <h3 className="truncate text-lg font-semibold text-emerald-800">
+          {item.carTitle}
+        </h3>
+        <StatusChip status={item.status} />
+      </div>
+
+      {/* Divider */}
+      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-emerald-100 to-transparent mb-3" />
+
+      <div className="flex gap-4 px-5 pb-5">
+        {/* รูปรถ */}
+        <div className="relative h-28 w-40 shrink-0 overflow-hidden rounded-xl ring-1 ring-emerald-100 bg-zinc-50">
+          {item.car_path ? (
+            <img
+              src={
+                item.car_path?.startsWith("http")
+                  ? item.car_path
+                  : `/${item.car_path}`
+              }
+              alt={item.carTitle}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
+            />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-zinc-400">ไม่มีรูป</div>
+            <div className="flex h-full w-full items-center justify-center text-zinc-400">
+              ไม่มีรูป
+            </div>
           )}
+
         </div>
-        {Array.isArray(item.steps) && item.steps.length > 0 && (
-          <ul className="mt-2 space-y-1 text-xs text-zinc-500">
-            {item.steps.map((s, i) => (
-              <li key={i}>
-                {thDate(s.created_at)} • {normalizeStatus(s.step_type)}{" "}
-                {s.note ? `(${s.note})` : ""}
-              </li>
-            ))}
-          </ul>
-        )}
-        {/* เนื้อหา */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="truncate text-lg font-semibold text-zinc-900">{item.carTitle}</h3>
-            <StatusChip status={item.status} />
+
+        {/* ข้อมูลอุบัติเหตุ */}
+        <div className="flex-1 space-y-2 text-sm text-zinc-700">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-500">📅</span>
+            <span className="text-zinc-500">วันที่แจ้งเคลม:</span>
+            <span className="font-medium text-zinc-800">{thDate(item.incidentDate)}</span>
           </div>
 
-          <dl className="mt-1 grid grid-cols-2 gap-y-1 text-sm text-zinc-700 sm:grid-cols-3">
-            <div className="truncate">
-              <dt className="inline text-zinc-500">วันที่แจ้งเคลม: </dt>
-              <dd className="inline">{thDate(item.incidentDate)}</dd>
-            </div>
-            <div className="truncate">
-              <dt className="inline text-zinc-500">ประเภทเหตุการณ์: </dt>
-              <dd className="inline">{item.incidentType ?? "-"}</dd>
-            </div>
-            <div className="truncate">
-              <dt className="inline text-zinc-500">ตำแหน่งความเสียหาย: </dt>
-              <dd className="inline">{item.severitySummary ?? "-"}</dd>
-            </div>
-          </dl>
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-500">💥</span>
+            <span className="text-zinc-500">ประเภทอุบัติเหตุ:</span>
+            <span className="font-medium text-zinc-800">
+              {item.incidentType ?? "-"}
+            </span>
+          </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => onOpenPdf(item.id)}
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
-            >
-              📄 ดูรายงาน PDF
-            </button>
+          <div className="flex items-start gap-2">
+            <span className="text-emerald-500 mt-[2px]">🛠️</span>
+            <div>
+              <span className="text-zinc-500">ความเสียหาย:</span>{" "}
+              <span className="font-medium text-zinc-800">
+                {item.damagePhotos && item.damagePhotos.length > 0
+                  ? item.damagePhotos
+                      .map((d) => d.note?.trim())
+                      .filter((n) => n && n.length > 0)
+                      .join(", ") || "ไม่ระบุ"
+                  : "ไม่ระบุ"}
+              </span>
+            </div>
+          </div>
+
+
+          {/* เส้นแบ่งเล็ก */}
+          <div className="my-2 h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-100 to-transparent" />
+
+          {/* ปุ่มตรวจสอบ */}
+          <div className="flex justify-between items-center">
+
             <Link
               href={`/adminpage/reportsrequest/accidentcheck?claim_id=${item.id}`}
-              className="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:from-emerald-600 hover:to-teal-600 active:scale-[0.98] transition-all duration-200"
             >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-4 w-4"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10.293 3.293a1 1 0 011.414 0L17 8.586a1 1 0 010 1.414l-5.293 5.293a1 1 0 01-1.414-1.414L13.586 10H4a1 1 0 110-2h9.586l-3.293-3.293a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
               ตรวจสอบความเสียหาย
             </Link>
           </div>
         </div>
       </div>
+
+
+      {/* Timeline (ถ้ามี) */}
+      {Array.isArray(item.steps) && item.steps.length > 0 && (
+        <div className="px-6 pb-4 border-t border-zinc-100 bg-zinc-50/50">
+          <div className="text-xs font-medium text-zinc-500 mb-1">📍 ขั้นตอนล่าสุด:</div>
+          <ul className="space-y-1 text-xs text-zinc-600">
+            {item.steps.slice(0, 3).map((s, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <span className="text-zinc-400">•</span>
+                <span>
+                  {thDate(s.created_at)} • {normalizeStatus(s.step_type)}{" "}
+                  {s.note ? `(${s.note})` : ""}
+                </span>
+              </li>
+            ))}
+            {item.steps.length > 3 && (
+              <li className="text-zinc-400 italic">...ดูเพิ่มเติมในหน้าเคลม</li>
+            )}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
+
 
 // ---------- Page ----------
 export default function ReportsRequestPage() {

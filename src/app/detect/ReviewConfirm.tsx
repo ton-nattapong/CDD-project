@@ -245,7 +245,7 @@ export default function ReviewConfirm({ onBack, onFinish, userId }: ReviewConfir
           </p>
           <span className="font-semibold">{car.insured_name}</span>
 
-          <p className="text-sm"> {car.policy_number}</p>
+          <p className="text-sm">หมายเลขกรมธรรม์: {car.policy_number}</p>
         </div>
 
         {/* กลาง: รถยนต์ที่ทำประกัน */}
@@ -419,14 +419,19 @@ export default function ReviewConfirm({ onBack, onFinish, userId }: ReviewConfir
         <button
           onClick={handleSubmit}
           disabled={!agree || submitting}
-          className={`rounded-lg px-4 py-2  font-medium text-white ${!agree || submitting ? "bg-[#6F47E4]" : "bg-[#6F47E4] hover:bg-[#6F47E4]/80"
-            }`}
+          className={`rounded-lg px-4 py-2 font-medium text-white transition-colors duration-200 ${
+            submitting
+              ? "bg-gray-400 cursor-not-allowed"
+              : agree
+              ? "bg-[#6F47E4] hover:bg-[#5A35D1]"
+              : "bg-gray-400 cursor-not-allowed"
+          }`}
         >
           {submitting
             ? "กำลังส่ง..."
             : claimStatus === "incomplete"
-              ? "ยืนยันการแก้ไข"
-              : "ยืนยันส่งเรื่อง"}
+            ? "ยืนยันการแก้ไข"
+            : "ยืนยันส่งเรื่อง"}
         </button>
       </div>
     </div>

@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { User, ClaimItem, ClaimReportRow, ClaimStatus, Car, AccidentDraft } from "@/types/claim";
+import type { User, ClaimItem, ClaimReportRow, ClaimStatus, Car, AccidentDraft, DamagePhoto } from "@/types/claim";
 import PdfRequest from "@/app/reports/PdfRequest";
 
 // ---------- Config ----------
@@ -57,6 +57,26 @@ async function fetchClaimsAll(): Promise<ClaimItem[]> {
 
   return rows.map((r: any) => {
     const status = normalizeStatus(r.status);
+            // map evaluation_images → DamagePhoto[]
+    const damagePhotos: DamagePhoto[] = Array.isArray(r.images)
+      ? r.images.map((img: { id: number; original_url?: string; damage_note?: string; side?: string }) => {
+      const side: DamagePhoto["side"] =
+      img.side === "ซ้าย" ||
+      img.side === "ขวา" ||
+      img.side === "หน้า" ||
+      img.side === "หลัง"
+      ? img.side
+      : "ไม่ระบุ";
+        
+      return {
+        id: img.id,
+        url: img.original_url ?? "",
+        type: "image",
+        side,
+        note: img.damage_note ?? undefined,
+        };
+      })
+      : [];
     return {
       id: String(r.claim_id ?? r.report_id ?? r.accident_detail_id),
       carTitle:
@@ -71,6 +91,8 @@ async function fetchClaimsAll(): Promise<ClaimItem[]> {
         r.thumbnail_url ??
         r.first_image_url ??
         (Array.isArray(r.images) ? r.images[0]?.original_url : undefined),
+      car_path: r.car_path,
+      damagePhotos: damagePhotos,
     } as ClaimItem;
   });
 }
@@ -116,65 +138,121 @@ function ReviewedCard({
   onOpenPdf: (id: string) => void;
 }) {
   const isApproved = item.status === "สำเร็จ";
+  const isRejected = item.status === "เอกสารไม่ผ่านการตรวจสอบ";
+  const isIncomplete = item.status === "เอกสารต้องแก้ไขเพิ่มเติม";
+
+  // สีกรอบตามสถานะ
+  const borderColor = isApproved
+    ? "border-emerald-300 bg-white"
+    : isRejected
+    ? "border-rose-300 bg-white"
+    : "border-amber-300 bg-white";
+
+  // สีปุ่มหลักตามสถานะ
+  const mainButtonColor = isRejected
+    ? "from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600"
+    : isIncomplete
+    ? "from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600"
+    : "";
+
   return (
-    <div className={`rounded-3xl border p-4 shadow-sm transition hover:shadow-md ${
-      isApproved ? "border-emerald-300 bg-emerald-50/50" : "border-rose-300 bg-rose-50/50"
-    }`}>
-      <div className="flex gap-4">
-        {/* รูป */}
-        <div className={`h-28 w-40 shrink-0 overflow-hidden rounded-xl ring-1 ${isApproved ? "ring-emerald-200" : "ring-rose-200"} bg-white`}>
-          {item.photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.photoUrl} alt={item.carTitle} className="h-full w-full object-cover" />
+    <div
+      className={`group relative overflow-hidden rounded-3xl border ${borderColor} shadow-sm hover:shadow-md transition-all duration-200`}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+        <h3 className="truncate text-lg font-semibold text-emerald-800">
+          {item.carTitle}
+        </h3>
+        <StatusChip status={item.status} />
+      </div>
+
+      {/* Divider */}
+      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-100 to-transparent mb-3" />
+
+      <div className="flex gap-4 px-5 pb-5">
+        {/* รูปภาพรถ */}
+        <div className="relative h-28 w-40 shrink-0 overflow-hidden rounded-xl ring-1 ring-emerald-100 bg-zinc-50">
+          {item.car_path ? (
+            <img
+              src={
+                item.car_path?.startsWith("http")
+                  ? item.car_path
+                  : `/${item.car_path}`
+              }
+              alt={item.carTitle}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
+            />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-zinc-400">ไม่มีรูป</div>
+            <div className="flex h-full w-full items-center justify-center text-zinc-400">
+              ไม่มีรูป
+            </div>
           )}
         </div>
 
-        {/* เนื้อหา */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="truncate text-lg font-semibold text-zinc-900">{item.carTitle}</h3>
-            <StatusChip status={item.status} />
+        {/* ข้อมูลหลัก */}
+        <div className="flex-1 space-y-2 text-sm text-zinc-700">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-500">📅</span>
+            <span className="text-zinc-500">วันที่แจ้งเคลม:</span>
+            <span className="font-medium text-zinc-800">
+              {thDate(item.incidentDate)}
+            </span>
           </div>
 
-          <dl className="mt-1 grid grid-cols-2 gap-y-1 text-sm text-zinc-700 sm:grid-cols-3">
-            <div className="truncate">
-              <dt className="inline text-zinc-500">วันที่แจ้งเคลม: </dt>
-              <dd className="inline">{thDate(item.incidentDate)}</dd>
-            </div>
-            <div className="truncate">
-              <dt className="inline text-zinc-500">ประเภทเหตุการณ์: </dt>
-              <dd className="inline">{item.incidentType ?? "-"}</dd>
-            </div>
-            <div className="truncate">
-              <dt className="inline text-zinc-500">สรุปความเสียหาย: </dt>
-              <dd className="inline">{item.severitySummary ?? "-"}</dd>
-            </div>
-          </dl>
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-500">💥</span>
+            <span className="text-zinc-500">ประเภทอุบัติเหตุ:</span>
+            <span className="font-medium text-zinc-800">
+              {item.incidentType ?? "-"}
+            </span>
+          </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => onOpenPdf(item.id)}
-              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-white ${
-                isApproved ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
-              }`}
-            >
-              📄 ดูรายงาน PDF
-            </button>
-            <Link
-              href={`/adminpage/reportsrequest/claim-doc?claim_id=${item.id}`}
-              className="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-black"
-              title="เปิดเอกสาร/รายละเอียด"
-            >
-              เปิดรายละเอียด
-            </Link>
+          <div className="flex items-start gap-2">
+            <span className="text-emerald-500 mt-[2px]">🛠️</span>
+            <div>
+              <span className="text-zinc-500">ความเสียหาย:</span>{" "}
+              <span className="font-medium text-zinc-800">
+                {item.damagePhotos && item.damagePhotos.length > 0
+                  ? item.damagePhotos
+                      .map((d) => d.note?.trim())
+                      .filter((n) => n && n.length > 0)
+                      .join(", ") || "ไม่ระบุ"
+                  : "ไม่ระบุ"}
+              </span>
+            </div>
+          </div>
+
+          {/* เส้นแบ่งเล็ก */}
+          <div className="my-2 h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-100 to-transparent" />
+
+          {/* ปุ่มแอ็กชัน */}
+          <div className="flex flex-wrap justify-between items-center gap-2">
+            {/* แสดงเฉพาะปุ่ม “ดูรายงาน PDF” สำหรับ ปฏิเสธ / ไม่ครบ */}
+            {(isRejected || isIncomplete) ? (
+              <button
+                onClick={() => onOpenPdf(item.id)}
+                className={`inline-flex items-center gap-2 rounded-full bg-gradient-to-r ${mainButtonColor} px-4 py-2 text-sm font-semibold text-white shadow-sm hover:shadow-md transition`}
+              >
+                📄 ดูรายงาน PDF
+              </button>
+            ) : isApproved ? (
+              <Link
+                href={`/adminpage/reportsrequest/claim-doc?claim_id=${item.id}`}
+                className="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800 transition"
+                title="เปิดรายละเอียด"
+              >
+                🔍 เปิดรายละเอียด
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+
 
 // ---------- Page ----------
 export default function ReportsReviewedPage() {

@@ -18,7 +18,7 @@ interface StepProps {
 
 export default function AccidentStep3({ onNext, onBack }: StepProps) {
     const [damageItems, setDamageItems] = useState<DamagePhotoItem[]>([]);
-    const [agreed, setAgreed] = useState(false);
+    // const [agreed, setAgreed] = useState(false);
 
     // ฟังก์ชันอัปโหลดไฟล์ไป Cloudinary
     async function uploadToCloudinary(file: File): Promise<MediaItem> {
@@ -53,7 +53,7 @@ export default function AccidentStep3({ onNext, onBack }: StepProps) {
                         }))
                     );
                 }
-                setAgreed(a.agreed || false);
+                // setAgreed(a.agreed || false);
             }
         } catch { }
     }, []);
@@ -92,71 +92,18 @@ export default function AccidentStep3({ onNext, onBack }: StepProps) {
         const payload = {
         ...oldDraft,
         damagePhotos,
-        agreed,
+        // agreed,
         };
 
         localStorage.setItem(ACC_KEY, JSON.stringify(payload));
         onNext();
     };
 
-    const isValid = damageItems.length > 0 && agreed;
+    const isValid = damageItems.length > 0 ; //&& agreed;
 
     
 
-    // ✅ handler สำหรับ panel
-//    const handlePanelChange = async (items: DamagePhotoItem[]) => {
-//     const updated: DamagePhotoItem[] = [];
 
-//     for (const item of items) {
-//         if (item.file) {
-//         try {
-//             const uploaded = await uploadToCloudinary(item.file);
-
-//             // 👇 merge field เดิมที่ user กรอกไว้ (side, note, total, perClass)
-//             updated.push({
-//             ...uploaded,
-//             side: item.side || uploaded.side, 
-//             note: item.note ?? uploaded.note,
-//             total: item.total ?? uploaded.total,
-//             perClass: item.perClass ?? uploaded.perClass,
-//             });
-//         } catch (err) {
-//             console.error("Upload failed:", err);
-//             updated.push(item);
-//         }
-//         } else {
-//         updated.push(item);
-//         }
-//     }
-
-//     setDamageItems(updated);
-//     };
-    // const handlePanelChange = async (items: DamagePhotoItem[]) => {
-    //     // อัปโหลดเฉพาะรูปที่ยังไม่ได้อัปโหลด
-    //     const uploadedItems: DamagePhotoItem[] = [];
-
-    //     for (const item of items) {
-    //         if (item.file) {
-    //         try {
-    //             const uploaded = await uploadToCloudinary(item.file);
-    //             uploadedItems.push({
-    //             ...item,
-    //             side: item.side || uploaded.side, 
-    //             note: item.note ?? uploaded.note,
-    //             total: item.total ?? uploaded.total,
-    //             perClass: item.perClass ?? uploaded.perClass,
-    //             });
-    //         } catch (err) {
-    //             console.error("Upload failed:", err);
-    //             uploadedItems.push(item);
-    //         }
-    //         } else {
-    //         uploadedItems.push(item);
-    //         }
-    //     }
-
-    //     setDamageItems(uploadedItems);
-    // };
 
 
     return (
@@ -179,19 +126,7 @@ export default function AccidentStep3({ onNext, onBack }: StepProps) {
                     </div>
                 </div>
 
-                {/* Checkbox */}
-                <div className="mt-6 flex items-start gap-2">
-                    <input
-                        id="agree"
-                        type="checkbox"
-                        checked={agreed}
-                        onChange={(e) => setAgreed(e.target.checked)}
-                        className="mt-1 h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
-                    />
-                    <label htmlFor="agree" className="text-sm text-zinc-700">
-                        ข้าพเจ้ายืนยันว่าข้อมูลถูกต้องและอนุญาตให้ใช้เพื่อการดำเนินการเคลม
-                    </label>
-                </div>
+
 
                 {/* ปุ่ม */}
                 <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
